@@ -1,48 +1,116 @@
 class WebSocketManager {
   private ws: WebSocket | null = null;
   private listeners: Map<string, Function[]> = new Map();
+  private chatId: string | null = null;
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectDelay = 5000; // 5 секунд
+  private isConnecting = false;
+  private pingInterval: number | null = null;
 
-  connectToChat(chatId: string) {
-    const token = document.cookie
-      .split('; ')
-      .find(row => row.startsWith('access_token='))
-      ?.split('=')[1];
-
-    if (!token) {
-      console.error('No token found');
+  async connectToChat(chatId: string) {
+    if (this.isConnecting) {
+      console.log('Already connecting, skipping...');
       return;
     }
 
-    if (this.ws) {
-      this.ws.close();
-    }
+    this.chatId = chatId;
+    this.isConnecting = true;
 
-    this.ws = new WebSocket(`ws://localhost:8000/api/chats/ws/${chatId}?token=${token}`);
-    
-    this.ws.onopen = () => {
-      console.log('WebSocket connected');
-    };
-    
-    this.ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        const eventName = data.type || 'new-message';
-        const callbacks = this.listeners.get(eventName);
-        if (callbacks) {
-          callbacks.forEach(cb => cb(data.message || data));
-        }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      const response = await fetch(`${apiUrl}/auth/ws-token`, {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to get WebSocket token');
+        this.isConnecting = false;
+        this.attemptReconnect();
+        return;
       }
-    };
+      
+      const { token } = await response.json();
+      
+      if (this.ws) {
+        this.ws.close();
+      }
+
+      const wsURL = import.meta.env.VITE_WS_URL;
+      const url = `${wsURL}/api/chats/ws/${chatId}?token=${token}`;
+      
+      this.ws = new WebSocket(url);
+      
+      this.ws.onopen = () => {
+        console.log('WebSocket connected');
+        this.reconnectAttempts = 0;
+        this.isConnecting = false;
+        
+        this.pingInterval = window.setInterval(() => {
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, 30000);
+      };
+      
+      this.ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'pong') return;
+          
+          if (data.type === 'new_message') {
+            const callbacks = this.listeners.get('new-message');
+            if (callbacks) {
+              callbacks.forEach(cb => cb(data.message));
+            }
+          } else {
+            const eventName = data.type;
+            const callbacks = this.listeners.get(eventName);
+            if (callbacks) {
+              callbacks.forEach(cb => cb(data));
+            }
+          }
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
+      
+      this.ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        if (this.pingInterval) {
+          clearInterval(this.pingInterval);
+          this.pingInterval = null;
+        }
+        this.isConnecting = false;
+        this.attemptReconnect();
+      };
+      
+      this.ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+    } catch (error) {
+      console.error('Error connecting to WebSocket:', error);
+      this.isConnecting = false;
+      this.attemptReconnect();
+    }
+  }
+
+  private attemptReconnect() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.log('Max reconnection attempts reached');
+      return;
+    }
     
-    this.ws.onclose = () => {
-      console.log('WebSocket disconnected');
-    };
+    this.reconnectAttempts++;
+    const delay = this.reconnectDelay * Math.min(this.reconnectAttempts, 3);
+    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
     
-    this.ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
+    setTimeout(() => {
+      if (this.chatId && !this.isConnecting && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
+        this.connectToChat(this.chatId);
+      }
+    }, delay);
   }
 
   on(event: string, callback: Function) {
@@ -71,6 +139,11 @@ class WebSocketManager {
   }
 
   disconnect() {
+    this.reconnectAttempts = this.maxReconnectAttempts;
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
     if (this.ws) {
       this.ws.close();
       this.ws = null;

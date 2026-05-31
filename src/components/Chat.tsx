@@ -60,7 +60,7 @@ export default function ChatRoom() {
         const messagesResponse = await fetchWithAuth(`${apiUrl}/chats/${id}/messages`);
         if (messagesResponse.ok) {
           const messagesData = await messagesResponse.json();
-          setMessages(Array.isArray(messagesData) ? messagesData : []);
+          setMessages(Array.isArray(messagesData) ? messagesData.reverse() : []);
         }
       } catch (error) {
         console.error('Error loading chat:', error);
@@ -75,14 +75,16 @@ export default function ChatRoom() {
   useEffect(() => {
     if (!user || !id) return;
 
-    const token = localStorage.getItem('token');
-    if (!token) return;
-
-    socket.connectToChat(id);
+    const initWebSocket = async () => {
+      await socket.connectToChat(id);
+    };
+    
+    initWebSocket();
 
     const handleNewMessage = (newMsg: Message) => {
       if (newMsg.chat_id === id) {
         setMessages((prev) => [...prev, newMsg]);
+      } else {
       }
     };
 
