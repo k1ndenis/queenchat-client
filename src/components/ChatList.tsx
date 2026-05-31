@@ -36,21 +36,25 @@ export default function ChatList() {
   }, [user, apiUrl]);
 
   const createNewChat = async () => {
+    const userId = prompt('Введите имя пользователя для чата:');
+    if (!userId) return;
+    
     try {
-      const response = await fetchWithAuth(`${apiUrl}/chats/`, {
+        const response = await fetchWithAuth(`${apiUrl}/chats/`, {
         method: 'POST',
         body: JSON.stringify({
-          name: null,
-          is_group: false,
-          participant_ids: []
+            name: null,
+            is_group: false,
+            participant_ids: [userId]
         })
-      });
-      const newChat = await response.json();
-      navigate(`/chat/${newChat.id}`);
+        });
+        const newChat = await response.json();
+        navigate(`/chat/${newChat.id}`);
     } catch (error) {
-      console.error('Error creating chat:', error);
+        console.error('Error creating chat:', error);
+        alert('Пользователь не найден');
     }
-  };
+    };
 
   if (loading) {
     return (
