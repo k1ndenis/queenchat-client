@@ -1,5 +1,6 @@
-import { User } from "@/types/user";
-import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import { createSlice, PayloadAction, createAsyncThunk } from "@reduxjs/toolkit";
+import type { User } from "./../../../src/types/user";
+import { fetchWithAuth } from "../../api";
 
 interface UserState {
   user: User | null;
@@ -8,8 +9,24 @@ interface UserState {
 
 const initialState: UserState = {
   user: null,
-  loading: true
-}
+  loading: true,
+};
+
+export const fetchMe = createAsyncThunk(
+  'user/fetchMe',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await fetchWithAuth('/auth/me');
+      if (!response.ok) {
+        throw new Error('Not authenticated');
+      }
+      const data = await response.json();
+      return data as User;
+    } catch (error) {
+      return rejectWithValue(null);
+    }
+  }
+);
 
 const userSlice = createSlice({
   name: 'user',
@@ -25,9 +42,21 @@ const userSlice = createSlice({
     logout: (state) => {
       state.user = null;
       state.loading = false;
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
     },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchMe.pending, (state) => {
+        state.loading = true;
+      })
+      .addCase(fetchMe.fulfilled, (state, action) => {
+        state.user = action.payload;
+        state.loading = false;
+      })
+      .addCase(fetchMe.rejected, (state) => {
+        state.user = null;
+        state.loading = false;
+      });
   },
 });
 

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppDispatch } from './../../lib/redux/hooks';
-import { setUser } from './../../lib/redux/slices/userSlice';
+import { useAppDispatch } from '../../lib/redux/hooks';
+import { setUser } from '../../lib/redux/slices/userSlice';
+import { fetchWithAuth } from '../../lib/api';
 
 export default function Login() {
   const dispatch = useAppDispatch();
@@ -14,16 +15,14 @@ export default function Login() {
     const apiUrl = import.meta.env.VITE_API_URL;
 
     try {
-      const response = await fetch(`${apiUrl}/auth/login`, {
+      const response = await fetchWithAuth(`${apiUrl}/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
+      
       const data = await response.json();
       
       if (response.ok) {
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
         dispatch(setUser(data.user));
         navigate('/chat');
       } else {

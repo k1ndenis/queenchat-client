@@ -1,17 +1,24 @@
 export async function fetchWithAuth(url: string, options: RequestInit = {}) {
-  const token = localStorage.getItem('token');
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+  
+  const token = document.cookie
+    .split('; ')
+    .find(row => row.startsWith('access_token='))
+    ?.split('=')[1];
 
-  const headers = {
-    'Content-Type': 'application/json',
-    ...options.headers,
-    ...(token && { 'Authorization': `Bearer ${token}` })
-  };
+  const fullUrl = url.startsWith('http') ? url : `${apiUrl}${url}`;
 
-  const response = await fetch(url, { ...options, headers });
+  const response = await fetch(fullUrl, {
+    ...options,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+      ...options.headers,
+    },
+  });
 
   if (response.status === 401) {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
     window.location.href = '/login';
     throw new Error('Unauthorized');
   }

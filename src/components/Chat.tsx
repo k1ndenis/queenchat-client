@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAppSelector } from './../../lib/redux/hooks';
-import { fetchWithAuth } from './../../lib/api';
-// import { socket } from './../../lib/socket'; // раскомментировать когда будет бэкенд
+import { useAppSelector } from '../../lib/redux/hooks';
+import { fetchWithAuth } from '../../lib/api';
+import { socket } from '../../lib/socket';
 
 interface Message {
   id: string;
@@ -31,15 +31,12 @@ export default function ChatRoom() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const apiUrl = import.meta.env.VITE_API_URL;
 
-  // Проверка авторизации
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    if (!token) {
+    if (!user) {
       navigate('/login');
     }
   }, [navigate]);
 
-  // Проверка id
   useEffect(() => {
     if (!id || id === 'undefined') {
       console.error('Invalid chat ID');
@@ -48,13 +45,11 @@ export default function ChatRoom() {
     }
   }, [id, navigate]);
 
-  // Загрузка данных чата
   useEffect(() => {
     if (!user || !id || id === 'undefined') return;
 
     const loadChatData = async () => {
       try {
-        // Получение информации о чате
         const chatResponse = await fetchWithAuth(`${apiUrl}/chats/${id}`);
         if (!chatResponse.ok) {
           throw new Error('Failed to load chat');
@@ -62,7 +57,6 @@ export default function ChatRoom() {
         const chatData = await chatResponse.json();
         setChat(chatData);
 
-        // Получение сообщений
         const messagesResponse = await fetchWithAuth(`${apiUrl}/chats/${id}/messages`);
         if (messagesResponse.ok) {
           const messagesData = await messagesResponse.json();
@@ -78,26 +72,28 @@ export default function ChatRoom() {
     loadChatData();
   }, [id, user, apiUrl, navigate]);
 
-  // WebSocket (закомментирован до готовности бэкенда)
-  // useEffect(() => {
-  //   if (!user || !id) return;
-  //
-  //   socket.connect();
-  //
-  //   const handleNewMessage = (newMsg: Message) => {
-  //     if (newMsg.chat_id === id) {
-  //       setMessages((prev) => [...prev, newMsg]);
-  //     }
-  //   };
-  //
-  //   socket.on('new-message', handleNewMessage);
-  //
-  //   return () => {
-  //     socket.off('new-message', handleNewMessage);
-  //   };
-  // }, [id, user]);
+  useEffect(() => {
+    if (!user || !id) return;
 
-  // Автоскролл
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    socket.connectToChat(id);
+
+    const handleNewMessage = (newMsg: Message) => {
+      if (newMsg.chat_id === id) {
+        setMessages((prev) => [...prev, newMsg]);
+      }
+    };
+
+    socket.on('new-message', handleNewMessage);
+
+    return () => {
+      socket.off('new-message', handleNewMessage);
+      socket.disconnect();
+    };
+  }, [id, user]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -130,11 +126,10 @@ export default function ChatRoom() {
       setMessages([...messages, data]);
       setNewMessage('');
 
-      // WebSocket (раскомментировать когда будет готов)
-      // socket.emit('send-message', {
-      //   ...data,
-      //   chat_id: id,
-      // });
+      socket.emit('send-message', {
+        ...data,
+        chat_id: id,
+      });
     } catch (error) {
       console.error('Error sending message:', error);
       alert('Не удалось отправить сообщение');

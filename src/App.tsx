@@ -1,8 +1,11 @@
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
-import Login from './components/Login.tsx';
-import Register from './components/Register.tsx';
-import ChatList from './components/ChatList.tsx';
-import ChatRoom from './components/Chat.tsx';
+import { useAppDispatch, useAppSelector } from './../lib/redux/hooks';
+import { fetchMe } from './../lib/redux/slices/userSlice';
+import { useEffect } from 'react';
+import Login from './components/Login';
+import Register from './components/Register';
+import ChatList from './components/ChatList';
+import ChatRoom from './components/Chat';
 
 function Home() {
   const navigate = useNavigate();
@@ -50,16 +53,38 @@ function Home() {
   );
 }
 
+function AppContent() {
+  const { loading } = useAppSelector(state => state.user);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-white text-xl">Загрузка...</div>
+      </div>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/chat" element={<ChatList />} />
+      <Route path="/chat/:id" element={<ChatRoom />} />
+    </Routes>
+  );
+}
+
 function App() {
+  const dispatch = useAppDispatch();
+
+  useEffect(() => {
+    dispatch(fetchMe());
+  }, [dispatch]);
+
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/chat" element={<ChatList />} />
-        <Route path="/chat/:id" element={<ChatRoom />} />
-      </Routes>
+      <AppContent />
     </BrowserRouter>
   );
 }

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchWithAuth } from './../../lib/api';
-import { useAppSelector } from './../../lib/redux/hooks';
+import { fetchWithAuth } from '../../lib/api';
+import { useAppSelector, useAppDispatch } from '../../lib/redux/hooks';
+import { logout } from '../../lib/redux/slices/userSlice';
 
 interface Chat {
   id: string;
@@ -12,10 +13,11 @@ interface Chat {
 
 export default function ChatList() {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const { user } = useAppSelector(state => state.user);
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(true);
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+  const apiUrl = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
     if (!user) return;
@@ -54,7 +56,14 @@ export default function ChatList() {
         console.error('Error creating chat:', error);
         alert('Пользователь не найден');
     }
-    };
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    dispatch(logout());
+    navigate('/login');
+  };
 
   if (loading) {
     return (
@@ -68,13 +77,24 @@ export default function ChatList() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-white">Мои чаты</h1>
-          <button
-            onClick={createNewChat}
-            className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90"
-          >
-            + Новый чат
-          </button>
+          <div>
+            <h1 className="text-2xl font-bold text-white">Мои чаты</h1>
+            <p className="text-purple-300 text-sm">Привет, {user?.username}!</p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={createNewChat}
+              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90"
+            >
+              + Новый чат
+            </button>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 hover:text-red-200 transition"
+            >
+              Выйти
+            </button>
+          </div>
         </div>
 
         <div className="space-y-3">
