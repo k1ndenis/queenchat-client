@@ -20,6 +20,7 @@ export default function ChatList() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [usernameInput, setUsernameInput] = useState('');
   const [error, setError] = useState('');
+  const [deleteChatId, setDeleteChatId] = useState<string | null>(null);
   const apiUrl = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
@@ -69,6 +70,26 @@ export default function ChatList() {
     } catch (error) {
       console.error('Error creating chat:', error);
       setError(error instanceof Error ? error.message : 'Пользователь не найден');
+    }
+  };
+
+  const handleDeleteChat = async () => {
+    if (!deleteChatId) return;
+    
+    try {
+      const response = await fetchWithAuth(`${apiUrl}/chats/${deleteChatId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete chat');
+      }
+      
+      setChats(chats.filter(chat => chat.id !== deleteChatId));
+      setDeleteChatId(null);
+    } catch (error) {
+      console.error('Error deleting chat:', error);
+      alert('Не удалось удалить чат');
     }
   };
 
@@ -126,13 +147,28 @@ export default function ChatList() {
               return (
                 <div
                   key={chat.id}
-                  onClick={() => navigate(`/chat/${chat.id}`)}
-                  className="bg-white/10 backdrop-blur-sm rounded-xl p-4 hover:bg-white/20 cursor-pointer transition"
+                  className="bg-white/10 backdrop-blur-sm rounded-xl p-4 hover:bg-white/20 transition group"
                 >
-                  <h3 className="text-white font-semibold">{displayName}</h3>
-                  <p className="text-purple-300 text-sm">
-                    {chat.is_group ? '👥 Групповой чат' : '💬 Личный чат'}
-                  </p>
+                  <div className="flex justify-between items-center">
+                    <div 
+                      className="flex-1 cursor-pointer"
+                      onClick={() => navigate(`/chat/${chat.id}`)}
+                    >
+                      <h3 className="text-white font-semibold">{displayName}</h3>
+                      <p className="text-purple-300 text-sm">
+                        {chat.is_group ? '👥 Групповой чат' : '💬 Личный чат'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setDeleteChatId(chat.id)}
+                      className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-all duration-200 p-2"
+                      title="Удалить чат"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               );
             })
@@ -178,6 +214,30 @@ export default function ChatList() {
                   setUsernameInput('');
                   setError('');
                 }}
+                className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteChatId && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gradient-to-br from-slate-800 to-red-900 rounded-2xl p-6 w-full max-w-md mx-4">
+            <h2 className="text-2xl font-bold text-white mb-4">Удалить чат?</h2>
+            <p className="text-purple-200 mb-6">Все сообщения будут удалены без возможности восстановления.</p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeleteChat}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+              >
+                Удалить
+              </button>
+              <button
+                onClick={() => setDeleteChatId(null)}
                 className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20"
               >
                 Отмена
