@@ -17,6 +17,9 @@ export default function ChatList() {
   const { user } = useAppSelector(state => state.user);
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [usernameInput, setUsernameInput] = useState('');
+  const [error, setError] = useState('');
   const apiUrl = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
@@ -37,24 +40,35 @@ export default function ChatList() {
     loadChats();
   }, [user, apiUrl]);
 
-  const createNewChat = async () => {
-    const userId = prompt('Введите имя пользователя для чата:');
-    if (!userId) return;
+  const handleCreateChat = async () => {
+    if (!usernameInput.trim()) {
+      setError('Введите имя пользователя');
+      return;
+    }
     
     try {
-        const response = await fetchWithAuth(`${apiUrl}/chats/`, {
+      const response = await fetchWithAuth(`${apiUrl}/chats/`, {
         method: 'POST',
         body: JSON.stringify({
-            name: null,
-            is_group: false,
-            participant_ids: [userId]
+          name: null,
+          is_group: false,
+          participant_ids: [usernameInput.trim()]
         })
-        });
-        const newChat = await response.json();
-        navigate(`/chat/${newChat.id}`);
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Пользователь не найден');
+      }
+      
+      const newChat = await response.json();
+      setIsModalOpen(false);
+      setUsernameInput('');
+      setError('');
+      navigate(`/chat/${newChat.id}`);
     } catch (error) {
-        console.error('Error creating chat:', error);
-        alert('Пользователь не найден');
+      console.error('Error creating chat:', error);
+      setError(error instanceof Error ? error.message : 'Пользователь не найден');
     }
   };
 
@@ -83,7 +97,7 @@ export default function ChatList() {
           </div>
           <div className="flex gap-3">
             <button
-              onClick={createNewChat}
+              onClick={() => setIsModalOpen(true)}
               className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90"
             >
               + Новый чат
@@ -125,6 +139,53 @@ export default function ChatList() {
           )}
         </div>
       </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gradient-to-br from-slate-800 to-purple-900 rounded-2xl p-6 w-full max-w-md mx-4">
+            <h2 className="text-2xl font-bold text-white mb-4">Новый чат</h2>
+            <p className="text-purple-200 mb-4">Введите имя пользователя для начала общения</p>
+            
+            <input
+              type="text"
+              value={usernameInput}
+              onChange={(e) => {
+                setUsernameInput(e.target.value);
+                setError('');
+              }}
+              placeholder="Имя пользователя"
+              className="w-full px-4 py-2 bg-white/10 border border-purple-300/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 mb-4"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCreateChat();
+              }}
+            />
+            
+            {error && (
+              <p className="text-red-400 text-sm mb-4">{error}</p>
+            )}
+            
+            <div className="flex gap-3">
+              <button
+                onClick={handleCreateChat}
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90"
+              >
+                Создать
+              </button>
+              <button
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setUsernameInput('');
+                  setError('');
+                }}
+                className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
