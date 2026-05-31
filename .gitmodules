@@ -1,0 +1,6 @@
+[submodule "api"]
+	path = api
+	url = https://github.com/k1ndenis/queenchat-api.git
+[submodule "client"]
+	path = client
+	url = https://github.com/k1ndenis/queenchat-client.git
