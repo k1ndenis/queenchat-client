@@ -2,24 +2,26 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppSelector } from './../../lib/redux/hooks';
 import { fetchWithAuth } from './../../lib/api';
-import { socket } from './../../lib/socket';
+// import { socket } from './../../lib/socket'; // раскомментировать когда будет бэкенд
 
 interface Message {
-  id: number;
+  id: string;
   content: string;
-  sender_id: number;
-  chat_id: number;
-  created_at: string;
+  sender_id: string;
+  chat_id: string;
+  created_at: number;
 }
 
 interface ChatInfo {
-  id: number;
+  id: string;
   name?: string;
-  other_user?: { username: string };
+  is_group: boolean;
+  created_by: string;
+  participants?: { user_id: string; username: string }[];
 }
 
 export default function ChatRoom() {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAppSelector(state => state.user);
   const [chat, setChat] = useState<ChatInfo | null>(null);
@@ -27,54 +29,75 @@ export default function ChatRoom() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const apiUrl = import.meta.env.VITE_API_URL;
 
+  // Проверка авторизации
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
       navigate('/login');
-      return;
     }
   }, [navigate]);
 
+  // Проверка id
   useEffect(() => {
-    if (!user) return;
+    if (!id || id === 'undefined') {
+      console.error('Invalid chat ID');
+      navigate('/chat');
+      return;
+    }
+  }, [id, navigate]);
+
+  // Загрузка данных чата
+  useEffect(() => {
+    if (!user || !id || id === 'undefined') return;
 
     const loadChatData = async () => {
       try {
-        const chatResponse = await fetchWithAuth(`http://localhost:8000/api/chats/${id}`);
+        // Получение информации о чате
+        const chatResponse = await fetchWithAuth(`${apiUrl}/chats/${id}`);
+        if (!chatResponse.ok) {
+          throw new Error('Failed to load chat');
+        }
         const chatData = await chatResponse.json();
         setChat(chatData);
 
-        const messagesResponse = await fetchWithAuth(`http://localhost:8000/api/messages?chatId=${id}`);
-        const messagesData = await messagesResponse.json();
-        setMessages(Array.isArray(messagesData) ? messagesData : []);
+        // Получение сообщений
+        const messagesResponse = await fetchWithAuth(`${apiUrl}/chats/${id}/messages`);
+        if (messagesResponse.ok) {
+          const messagesData = await messagesResponse.json();
+          setMessages(Array.isArray(messagesData) ? messagesData : []);
+        }
       } catch (error) {
         console.error('Error loading chat:', error);
+        navigate('/chat');
       } finally {
         setLoading(false);
       }
     };
     loadChatData();
-  }, [id, user]);
+  }, [id, user, apiUrl, navigate]);
 
-  useEffect(() => {
-    if (!user) return;
+  // WebSocket (закомментирован до готовности бэкенда)
+  // useEffect(() => {
+  //   if (!user || !id) return;
+  //
+  //   socket.connect();
+  //
+  //   const handleNewMessage = (newMsg: Message) => {
+  //     if (newMsg.chat_id === id) {
+  //       setMessages((prev) => [...prev, newMsg]);
+  //     }
+  //   };
+  //
+  //   socket.on('new-message', handleNewMessage);
+  //
+  //   return () => {
+  //     socket.off('new-message', handleNewMessage);
+  //   };
+  // }, [id, user]);
 
-    socket.connect();
-
-    const handleNewMessage = (newMsg: Message) => {
-      if (newMsg.chat_id === Number(id)) {
-        setMessages((prev) => [...prev, newMsg]);
-      }
-    };
-
-    socket.on('new-message', handleNewMessage);
-
-    return () => {
-      socket.off('new-message', handleNewMessage);
-    };
-  }, [id, user]);
-
+  // Автоскролл
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -86,23 +109,32 @@ export default function ChatRoom() {
       return;
     }
     if (!newMessage.trim()) return;
+    if (!id || id === 'undefined') {
+      alert('Invalid chat ID');
+      return;
+    }
 
     try {
-      const response = await fetchWithAuth('http://localhost:8000/api/messages', {
+      const response = await fetchWithAuth(`${apiUrl}/chats/${id}/messages`, {
         method: 'POST',
         body: JSON.stringify({
-          chatId: Number(id),
           content: newMessage,
         }),
       });
+
+      if (!response.ok) {
+        throw new Error('Failed to send message');
+      }
+
       const data = await response.json();
       setMessages([...messages, data]);
       setNewMessage('');
 
-      socket.emit('send-message', {
-        ...data,
-        chat_id: Number(id),
-      });
+      // WebSocket (раскомментировать когда будет готов)
+      // socket.emit('send-message', {
+      //   ...data,
+      //   chat_id: id,
+      // });
     } catch (error) {
       console.error('Error sending message:', error);
       alert('Не удалось отправить сообщение');
@@ -125,7 +157,7 @@ export default function ChatRoom() {
     );
   }
 
-  const chatName = chat.name || chat.other_user?.username || 'Чат';
+  const chatName = chat.name || 'Чат';
 
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col">
@@ -157,7 +189,7 @@ export default function ChatRoom() {
             messages.map((msg) => {
               let formattedDate = '';
               try {
-                const date = new Date(msg.created_at);
+                const date = new Date(msg.created_at * 1000);
                 if (!isNaN(date.getTime())) {
                   formattedDate = date.toLocaleTimeString([], {
                     hour: '2-digit',

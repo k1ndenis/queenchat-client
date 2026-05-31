@@ -1,7 +1,8 @@
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import Login from './components/Login.tsx';
 import Register from './components/Register.tsx';
-import Chat from './components/Chat.tsx'
+import ChatList from './components/ChatList.tsx';
+import ChatRoom from './components/Chat.tsx';
 
 function Home() {
   const navigate = useNavigate();
@@ -56,7 +57,8 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/chat" element={<Chat />} />
+        <Route path="/chat" element={<ChatList />} />
+        <Route path="/chat/:id" element={<ChatRoom />} />
       </Routes>
     </BrowserRouter>
   );
