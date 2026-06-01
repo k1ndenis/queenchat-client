@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAppSelector } from '../../lib/redux/hooks';
 import { fetchWithAuth } from '../../lib/api';
@@ -23,10 +23,20 @@ export default function ChatRoom() {
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const apiUrl = import.meta.env.VITE_API_URL;
+  const isMounted = useRef(true);
+  const messageIds = useRef<Set<string>>(new Set());
 
   const closeModal = () => {
     setModal({ isOpen: false, title: '', message: '' });
   };
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+      messageIds.current.clear();
+    };
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -36,108 +46,158 @@ export default function ChatRoom() {
 
   useEffect(() => {
     if (!id || id === 'undefined') {
-      console.error('Invalid chat ID');
       navigate('/chat');
-      return;
     }
   }, [id, navigate]);
 
+  const ensureParticipant = useCallback(async (chatId: string, userId: string) => {
+    try {
+      const response = await fetchWithAuth(`${apiUrl}/chats/${chatId}/participants/${userId}`, {
+        method: 'POST',
+      });
+      return response.ok || response.status === 409;
+    } catch (error) {
+      return false;
+    }
+  }, [apiUrl]);
+
+  // Загрузка сообщений из БД (только при входе в чат)
   useEffect(() => {
     if (!user || !id || id === 'undefined') return;
 
     const loadChatData = async () => {
+      setLoading(true);
+      
       try {
-        const chatResponse = await fetchWithAuth(`${apiUrl}/chats/${id}`);
-        if (!chatResponse.ok) {
-          throw new Error('Failed to load chat');
-        }
+        // Очищаем ID при загрузке
+        messageIds.current.clear();
+        
+        const [chatResponse, messagesResponse] = await Promise.all([
+          fetchWithAuth(`${apiUrl}/chats/${id}`),
+          fetchWithAuth(`${apiUrl}/chats/${id}/messages`),
+        ]);
+
+        if (!chatResponse.ok) throw new Error('Failed to load chat');
+        
         const chatData = await chatResponse.json();
         setChat(chatData);
-
-        const messagesResponse = await fetchWithAuth(`${apiUrl}/chats/${id}/messages`);
+        
+        const isParticipant = chatData.participants?.some((p: any) => p.id === user.id);
+        if (!isParticipant) {
+          await ensureParticipant(id, user.id);
+        }
+        
         if (messagesResponse.ok) {
-          const messagesData = await messagesResponse.json();
-          setMessages(Array.isArray(messagesData) ? messagesData.reverse() : []);
+          let messagesData = await messagesResponse.json();
+          if (Array.isArray(messagesData)) {
+            // Сохраняем ID всех загруженных сообщений
+            messagesData.forEach((msg: Message) => {
+              messageIds.current.add(msg.id);
+            });
+            messagesData.sort((a: Message, b: Message) => a.created_at - b.created_at);
+            setMessages(messagesData);
+            console.log('Loaded', messagesData.length, 'messages');
+          }
         }
       } catch (error) {
-        console.error('Error loading chat:', error);
+        console.error(error);
         navigate('/chat');
       } finally {
         setLoading(false);
       }
     };
+    
     loadChatData();
-  }, [id, user, apiUrl, navigate]);
+  }, [id, user, apiUrl, navigate, ensureParticipant]);
 
+  // WebSocket - только для новых сообщений от других пользователей
   useEffect(() => {
     if (!user || !id) return;
 
-    const initWebSocket = async () => {
-      await socket.connectToChat(id);
-    };
-    
-    initWebSocket();
+    socket.connectToChat(id);
 
     const handleNewMessage = (newMsg: Message) => {
-      if (newMsg.chat_id === id) {
-        setMessages((prev) => [...prev, newMsg]);
+      // Только чужие сообщения
+      if (newMsg.sender_id === user.id) return;
+      if (newMsg.chat_id !== id) return;
+      
+      // Проверяем, нет ли уже такого ID
+      if (messageIds.current.has(newMsg.id)) {
+        console.log('Duplicate ignored:', newMsg.id);
+        return;
       }
+      
+      // Добавляем ID и сообщение
+      messageIds.current.add(newMsg.id);
+      setMessages(prev => {
+        const newMessages = [...prev, newMsg];
+        newMessages.sort((a, b) => a.created_at - b.created_at);
+        return newMessages;
+      });
     };
 
     socket.on('new-message', handleNewMessage);
 
     return () => {
       socket.off('new-message', handleNewMessage);
-      socket.disconnect();
     };
   }, [id, user]);
 
+  // Автоскролл
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Отправка сообщения
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user) {
-      setModal({
-        isOpen: true,
-        title: 'Ошибка',
-        message: 'Пользователь не авторизован',
-      });
-      return;
-    }
-    if (!newMessage.trim()) return;
-    if (!id || id === 'undefined') {
-      setModal({
-        isOpen: true,
-        title: 'Ошибка',
-        message: 'Неверный ID чата',
-      });
-      return;
-    }
+    if (!user || !newMessage.trim() || !id) return;
+
+    const tempId = `temp-${Date.now()}`;
+    const tempMessage: Message = {
+      id: tempId,
+      content: newMessage,
+      sender_id: user.id,
+      chat_id: id,
+      created_at: Math.floor(Date.now() / 1000),
+      is_read: true,
+      is_sticker: false,
+    };
+
+    // Добавляем временное сообщение локально
+    messageIds.current.add(tempId);
+    setMessages(prev => {
+      const newMessages = [...prev, tempMessage];
+      newMessages.sort((a, b) => a.created_at - b.created_at);
+      return newMessages;
+    });
+    setNewMessage('');
 
     try {
       const response = await fetchWithAuth(`${apiUrl}/chats/${id}/messages`, {
         method: 'POST',
-        body: JSON.stringify({
-          content: newMessage,
-        }),
+        body: JSON.stringify({ content: newMessage }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to send message');
-      }
+      if (!response.ok) throw new Error('Failed to send message');
 
       const data = await response.json();
-      setMessages([...messages, data]);
-      setNewMessage('');
+      
+      // Заменяем временное сообщение на реальное
+      messageIds.current.delete(tempId);
+      messageIds.current.add(data.id);
+      
+      setMessages(prev => 
+        prev.map(msg => msg.id === tempId ? { ...data, is_read: true } : msg)
+          .sort((a, b) => a.created_at - b.created_at)
+      );
 
-      socket.emit('send-message', {
-        ...data,
-        chat_id: id,
-      });
+      // Отправляем другим через WebSocket (НЕ ДЛЯ СЕБЯ)
+      socket.emit('send-message', { ...data, chat_id: id });
+      
     } catch (error) {
-      console.error('Error sending message:', error);
+      messageIds.current.delete(tempId);
+      setMessages(prev => prev.filter(msg => msg.id !== tempId));
       setModal({
         isOpen: true,
         title: 'Ошибка',
@@ -149,24 +209,45 @@ export default function ChatRoom() {
   const handleSendSticker = async (stickerId: string, emoji: string) => {
     if (!user || !id) return;
 
+    const tempId = `temp-${Date.now()}`;
+    const tempMessage: Message = {
+      id: tempId,
+      content: emoji,
+      sender_id: user.id,
+      chat_id: id,
+      created_at: Math.floor(Date.now() / 1000),
+      is_read: true,
+      is_sticker: true,
+    };
+
+    messageIds.current.add(tempId);
+    setMessages(prev => {
+      const newMessages = [...prev, tempMessage];
+      newMessages.sort((a, b) => a.created_at - b.created_at);
+      return newMessages;
+    });
+    setShowStickerPicker(false);
+
     try {
       const response = await fetchWithAuth(`${apiUrl}/chats/${id}/messages`, {
         method: 'POST',
-        body: JSON.stringify({
-          sticker_id: stickerId,
-          content: emoji,
-        }),
+        body: JSON.stringify({ sticker_id: stickerId, content: emoji }),
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to send sticker');
-      }
+      if (!response.ok) throw new Error('Failed to send sticker');
 
       const data = await response.json();
-      setMessages([...messages, data]);
-      setShowStickerPicker(false);
+      
+      messageIds.current.delete(tempId);
+      messageIds.current.add(data.id);
+      
+      setMessages(prev => 
+        prev.map(msg => msg.id === tempId ? { ...data, is_read: true } : msg)
+          .sort((a, b) => a.created_at - b.created_at)
+      );
     } catch (error) {
-      console.error('Error sending sticker:', error);
+      messageIds.current.delete(tempId);
+      setMessages(prev => prev.filter(msg => msg.id !== tempId));
       setModal({
         isOpen: true,
         title: 'Ошибка',
@@ -231,17 +312,20 @@ export default function ChatRoom() {
                       minute: '2-digit',
                     });
                   }
-                } catch (error) {
-                  console.error(error);
+                } catch {
+                  // ignore
                 }
+
+                const isOwn = msg.sender_id === user?.id;
+
                 return (
                   <div
                     key={msg.id}
-                    className={`flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
+                    className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
                       className={`max-w-[70%] px-4 py-2 rounded-2xl ${
-                        msg.sender_id === user?.id
+                        isOwn
                           ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
                           : 'bg-white/10 text-white'
                       }`}
@@ -251,7 +335,14 @@ export default function ChatRoom() {
                       ) : (
                         <p>{msg.content}</p>
                       )}
-                      <p className="text-xs opacity-70 mt-1">{formattedDate}</p>
+                      <div className="flex items-center justify-end gap-1 mt-1">
+                        <p className="text-xs opacity-70">{formattedDate}</p>
+                        {isOwn && (
+                          <span className="text-xs opacity-70">
+                            {msg.is_read ? '✓✓' : '✓'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

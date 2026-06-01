@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 import Login from './components/Login';
 import Register from './components/Register';
 import ChatList from './components/ChatList';
-import ChatRoom from './components/Chat';
+import ChatRoom from './components/ChatRoom';
 
 function Home() {
   const navigate = useNavigate();
