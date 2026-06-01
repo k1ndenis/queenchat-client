@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAppSelector } from '../../lib/redux/hooks';
 import { fetchWithAuth } from '../../lib/api';
 import { socket } from '../../lib/socket';
+import StickerPicker from './StickerPicker';
 import type { Message } from '../types/message';
 import type { ChatInfo } from '../types/chat';
 
@@ -14,6 +15,7 @@ export default function ChatRoom() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false,
     title: '',
@@ -144,6 +146,35 @@ export default function ChatRoom() {
     }
   };
 
+  const handleSendSticker = async (stickerId: string, emoji: string) => {
+    if (!user || !id) return;
+
+    try {
+      const response = await fetchWithAuth(`${apiUrl}/chats/${id}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({
+          sticker_id: stickerId,
+          content: emoji,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send sticker');
+      }
+
+      const data = await response.json();
+      setMessages([...messages, data]);
+      setShowStickerPicker(false);
+    } catch (error) {
+      console.error('Error sending sticker:', error);
+      setModal({
+        isOpen: true,
+        title: 'Ошибка',
+        message: 'Не удалось отправить стикер',
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
@@ -215,7 +246,11 @@ export default function ChatRoom() {
                           : 'bg-white/10 text-white'
                       }`}
                     >
-                      <p>{msg.content}</p>
+                      {msg.is_sticker ? (
+                        <span className="text-6xl block leading-none">{msg.content}</span>
+                      ) : (
+                        <p>{msg.content}</p>
+                      )}
                       <p className="text-xs opacity-70 mt-1">{formattedDate}</p>
                     </div>
                   </div>
@@ -227,23 +262,40 @@ export default function ChatRoom() {
         </div>
 
         <div className="border-t border-white/10 px-6 py-4">
-          <form onSubmit={sendMessage} className="max-w-4xl mx-auto flex gap-3">
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Введите сообщение..."
-              className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all"
-            />
-            <button
-              type="submit"
-              className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-purple-500/25 transition-all duration-300 cursor-pointer"
-            >
-              Отправить
-            </button>
+          <form onSubmit={sendMessage} className="max-w-4xl mx-auto">
+            <div className="flex gap-2 items-center">
+              <button
+                type="button"
+                onClick={() => setShowStickerPicker(!showStickerPicker)}
+                className="px-3 py-2 bg-white/10 rounded-xl text-2xl hover:bg-white/20 transition"
+                title="Стикеры"
+              >
+                😀
+              </button>
+              <input
+                type="text"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Введите сообщение..."
+                className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all"
+              />
+              <button
+                type="submit"
+                className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-purple-500/25 transition-all duration-300 cursor-pointer"
+              >
+                Отправить
+              </button>
+            </div>
           </form>
         </div>
       </div>
+
+      {showStickerPicker && (
+        <StickerPicker
+          onSelectSticker={handleSendSticker}
+          onClose={() => setShowStickerPicker(false)}
+        />
+      )}
 
       {modal.isOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
