@@ -10,7 +10,12 @@ import ChatRoom from './components/ChatRoom';
 function LoadingScreen() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-      <div className="text-white text-xl">Загрузка...</div>
+      <div className="relative">
+        <div className="absolute inset-0 rounded-full bg-purple-500/20 blur-xl animate-ping"></div>
+        <div className="relative w-20 h-20 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-xl animate-pulse">
+          <span className="text-4xl">💬</span>
+        </div>
+      </div>
     </div>
   );
 }
