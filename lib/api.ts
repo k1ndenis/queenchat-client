@@ -18,10 +18,22 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
     },
   });
 
-  if (response.status === 401) {
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
-  }
-
   return response;
+}
+
+export async function checkAuthAndRedirect() {
+  const response = await fetchWithAuth('/auth/me');
+  
+  if (!response.ok && response.status === 401) {
+    document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    localStorage.removeItem('access_token');
+    
+    if (!window.location.pathname.includes('/login') && 
+        !window.location.pathname.includes('/register')) {
+      window.location.href = '/login';
+    }
+    return false;
+  }
+  
+  return true;
 }

@@ -1,11 +1,19 @@
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from './../lib/redux/hooks';
 import { fetchMe } from './../lib/redux/slices/userSlice';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import Login from './components/Login';
 import Register from './components/Register';
 import ChatList from './components/ChatList';
 import ChatRoom from './components/ChatRoom';
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+      <div className="text-white text-xl">Загрузка...</div>
+    </div>
+  );
+}
 
 function Home() {
   const navigate = useNavigate();
@@ -56,20 +64,29 @@ function Home() {
 function AppContent() {
   const { user, loading } = useAppSelector(state => state.user);
   const location = useLocation();
+  const dispatch = useAppDispatch();
+  const hasFetched = useRef(false);
+
+  useEffect(() => {
+    if (!hasFetched.current) {
+      hasFetched.current = true;
+      dispatch(fetchMe());
+    }
+  }, [dispatch]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <div className="text-white text-xl">Загрузка...</div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
   const isHomePage = location.pathname === '/';
   
   if (!user && !isAuthPage && !isHomePage) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user && (isAuthPage || isHomePage)) {
+    return <Navigate to="/chat" replace />;
   }
 
   return (
@@ -77,19 +94,13 @@ function AppContent() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      <Route path="/chat" element={user ? <ChatList /> : <Navigate to="/login" />} />
-      <Route path="/chat/:id" element={user ? <ChatRoom /> : <Navigate to="/login" />} />
+      <Route path="/chat" element={<ChatList />} />
+      <Route path="/chat/:id" element={<ChatRoom />} />
     </Routes>
   );
 }
 
 function App() {
-  const dispatch = useAppDispatch();
-
-  useEffect(() => {
-    dispatch(fetchMe());
-  }, [dispatch]);
-
   return (
     <BrowserRouter>
       <AppContent />
