@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '../../lib/redux/hooks';
-import { setUser } from '../../lib/redux/slices/userSlice';
+import { setUser, fetchMe } from '../../lib/redux/slices/userSlice';
 import { fetchWithAuth } from '../../lib/api';
 
 export default function Login() {
@@ -24,6 +24,7 @@ export default function Login() {
       
       if (response.ok) {
         dispatch(setUser(data.user));
+        await dispatch(fetchMe())
         navigate('/chat');
       } else {
         alert(data.error || 'Ошибка входа');

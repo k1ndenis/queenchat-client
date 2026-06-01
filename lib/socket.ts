@@ -10,7 +10,6 @@ class WebSocketManager {
 
   async connectToChat(chatId: string) {
     if (this.isConnecting) {
-      console.log('Already connecting, skipping...');
       return;
     }
 
@@ -42,7 +41,6 @@ class WebSocketManager {
       this.ws = new WebSocket(url);
       
       this.ws.onopen = () => {
-        console.log('WebSocket connected');
         this.reconnectAttempts = 0;
         this.isConnecting = false;
         
@@ -77,7 +75,6 @@ class WebSocketManager {
       };
       
       this.ws.onclose = () => {
-        console.log('WebSocket disconnected');
         if (this.pingInterval) {
           clearInterval(this.pingInterval);
           this.pingInterval = null;
@@ -98,13 +95,11 @@ class WebSocketManager {
 
   private attemptReconnect() {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.log('Max reconnection attempts reached');
       return;
     }
     
     this.reconnectAttempts++;
     const delay = this.reconnectDelay * Math.min(this.reconnectAttempts, 3);
-    console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
     
     setTimeout(() => {
       if (this.chatId && !this.isConnecting && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {

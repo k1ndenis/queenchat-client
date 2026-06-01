@@ -1,5 +1,5 @@
 export async function fetchWithAuth(url: string, options: RequestInit = {}) {
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+  const apiUrl = import.meta.env.VITE_API_URL;
   
   const token = document.cookie
     .split('; ')

@@ -35,7 +35,7 @@ export default function ChatRoom() {
     if (!user) {
       navigate('/login');
     }
-  }, [navigate]);
+  }, [user, navigate]);
 
   useEffect(() => {
     if (!id || id === 'undefined') {

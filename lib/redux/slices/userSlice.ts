@@ -17,9 +17,11 @@ export const fetchMe = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const response = await fetchWithAuth('/auth/me');
+      
       if (!response.ok) {
         throw new Error('Not authenticated');
       }
+      
       const data = await response.json();
       return data as User;
     } catch (error) {

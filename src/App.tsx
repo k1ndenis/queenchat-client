@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from './../lib/redux/hooks';
 import { fetchMe } from './../lib/redux/slices/userSlice';
 import { useEffect } from 'react';
@@ -54,7 +54,10 @@ function Home() {
 }
 
 function AppContent() {
-  const { loading } = useAppSelector(state => state.user);
+  const { user, loading } = useAppSelector(state => state.user);
+  const location = useLocation();
+
+  console.log('🔵 AppContent:', { user, loading, path: location.pathname });  // ← отладка
 
   if (loading) {
     return (
@@ -64,13 +67,20 @@ function AppContent() {
     );
   }
 
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
+  const isHomePage = location.pathname === '/';
+  
+  if (!user && !isAuthPage && !isHomePage) {
+    return <Navigate to="/login" />;
+  }
+
   return (
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-      <Route path="/chat" element={<ChatList />} />
-      <Route path="/chat/:id" element={<ChatRoom />} />
+      <Route path="/chat" element={user ? <ChatList /> : <Navigate to="/login" />} />
+      <Route path="/chat/:id" element={user ? <ChatRoom /> : <Navigate to="/login" />} />
     </Routes>
   );
 }
