@@ -19,7 +19,6 @@ class WebSocketManager {
       return;
     }
 
-    // Если уже подключены к другому чату, закрываем соединение
     if (this.currentChatId && this.currentChatId !== chatId) {
       console.log(`🔄 Switching from chat ${this.currentChatId} to ${chatId}`);
       this.disconnect();
@@ -75,6 +74,11 @@ class WebSocketManager {
             const callbacks = this.listeners.get('new-message');
             if (callbacks) {
               callbacks.forEach(cb => cb(data.message));
+            }
+          } else if (data.type === 'message_read') {
+            const callbacks = this.listeners.get('message_read');
+            if (callbacks) {
+              callbacks.forEach(cb => cb(data));
             }
           } else {
             const eventName = data.type;

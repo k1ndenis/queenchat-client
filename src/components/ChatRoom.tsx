@@ -61,7 +61,6 @@ export default function ChatRoom() {
     }
   }, [apiUrl]);
 
-  // Загрузка сообщений из БД (только при входе в чат)
   useEffect(() => {
     if (!user || !id || id === 'undefined') return;
 
@@ -69,7 +68,6 @@ export default function ChatRoom() {
       setLoading(true);
       
       try {
-        // Очищаем ID при загрузке
         messageIds.current.clear();
         
         const [chatResponse, messagesResponse] = await Promise.all([
@@ -90,13 +88,11 @@ export default function ChatRoom() {
         if (messagesResponse.ok) {
           let messagesData = await messagesResponse.json();
           if (Array.isArray(messagesData)) {
-            // Сохраняем ID всех загруженных сообщений
             messagesData.forEach((msg: Message) => {
               messageIds.current.add(msg.id);
             });
             messagesData.sort((a: Message, b: Message) => a.created_at - b.created_at);
             setMessages(messagesData);
-            console.log('Loaded', messagesData.length, 'messages');
           }
         }
       } catch (error) {
@@ -110,24 +106,16 @@ export default function ChatRoom() {
     loadChatData();
   }, [id, user, apiUrl, navigate, ensureParticipant]);
 
-  // WebSocket - только для новых сообщений от других пользователей
-  useEffect(() => {
+    useEffect(() => {
     if (!user || !id) return;
 
     socket.connectToChat(id);
 
     const handleNewMessage = (newMsg: Message) => {
-      // Только чужие сообщения
       if (newMsg.sender_id === user.id) return;
       if (newMsg.chat_id !== id) return;
+      if (messageIds.current.has(newMsg.id)) return;
       
-      // Проверяем, нет ли уже такого ID
-      if (messageIds.current.has(newMsg.id)) {
-        console.log('Duplicate ignored:', newMsg.id);
-        return;
-      }
-      
-      // Добавляем ID и сообщение
       messageIds.current.add(newMsg.id);
       setMessages(prev => {
         const newMessages = [...prev, newMsg];
@@ -136,19 +124,55 @@ export default function ChatRoom() {
       });
     };
 
+    const handleMessageRead = (data: { message_id: string; user_id: string; chat_id: string }) => {
+      console.log('🔵 Message read received:', data);
+      
+      if (data.chat_id !== id) return;
+      
+      setMessages(prev =>
+        prev.map(msg => {
+          if (msg.id === data.message_id) {
+            console.log('✅ Updating message', msg.id, 'is_read to true');
+            return { ...msg, is_read: true };
+          }
+          return msg;
+        })
+      );
+    };
+
     socket.on('new-message', handleNewMessage);
+    socket.on('message_read', handleMessageRead);
 
     return () => {
       socket.off('new-message', handleNewMessage);
+      socket.off('message_read', handleMessageRead);
     };
   }, [id, user]);
 
-  // Автоскролл
+  useEffect(() => {
+    if (!user || !id || messages.length === 0) return;
+    
+    const unreadMessages = messages.filter(
+      msg => msg.sender_id !== user.id && !msg.is_read
+    );
+    
+    if (unreadMessages.length === 0) return;
+    
+    const timeoutId = setTimeout(() => {
+      unreadMessages.forEach(msg => {
+        fetchWithAuth(`${apiUrl}/chats/${id}/messages/${msg.id}/read`, {
+          method: 'PATCH',
+        }).catch(console.error);
+      });
+    }, 500);
+    
+    return () => clearTimeout(timeoutId);
+  }, [messages, user, id, apiUrl]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Отправка сообщения
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newMessage.trim() || !id) return;
@@ -160,11 +184,10 @@ export default function ChatRoom() {
       sender_id: user.id,
       chat_id: id,
       created_at: Math.floor(Date.now() / 1000),
-      is_read: true,
+      is_read: false,
       is_sticker: false,
     };
 
-    // Добавляем временное сообщение локально
     messageIds.current.add(tempId);
     setMessages(prev => {
       const newMessages = [...prev, tempMessage];
@@ -183,16 +206,14 @@ export default function ChatRoom() {
 
       const data = await response.json();
       
-      // Заменяем временное сообщение на реальное
       messageIds.current.delete(tempId);
       messageIds.current.add(data.id);
       
       setMessages(prev => 
-        prev.map(msg => msg.id === tempId ? { ...data, is_read: true } : msg)
+        prev.map(msg => msg.id === tempId ? { ...data } : msg)
           .sort((a, b) => a.created_at - b.created_at)
       );
 
-      // Отправляем другим через WebSocket (НЕ ДЛЯ СЕБЯ)
       socket.emit('send-message', { ...data, chat_id: id });
       
     } catch (error) {
@@ -216,7 +237,7 @@ export default function ChatRoom() {
       sender_id: user.id,
       chat_id: id,
       created_at: Math.floor(Date.now() / 1000),
-      is_read: true,
+      is_read: false,
       is_sticker: true,
     };
 
@@ -242,7 +263,7 @@ export default function ChatRoom() {
       messageIds.current.add(data.id);
       
       setMessages(prev => 
-        prev.map(msg => msg.id === tempId ? { ...data, is_read: true } : msg)
+        prev.map(msg => msg.id === tempId ? { ...data } : msg)
           .sort((a, b) => a.created_at - b.created_at)
       );
     } catch (error) {
@@ -313,7 +334,6 @@ export default function ChatRoom() {
                     });
                   }
                 } catch {
-                  // ignore
                 }
 
                 const isOwn = msg.sender_id === user?.id;
