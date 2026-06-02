@@ -4,6 +4,7 @@ import { fetchWithAuth } from '../../lib/api';
 import { useAppSelector, useAppDispatch } from '../../lib/redux/hooks';
 import { logout } from '../../lib/redux/slices/userSlice';
 import type { Chat } from '../types/chat';
+import LoadingScreen from './LoadingScreen';
 
 export default function ChatList() {
   const navigate = useNavigate();
@@ -108,11 +109,7 @@ export default function ChatList() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <div className="text-white">Загрузка...</div>
-      </div>
-    );
+    return <LoadingScreen />
   }
 
   return (

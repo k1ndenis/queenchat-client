@@ -4,6 +4,7 @@ import { useAppSelector } from '../../lib/redux/hooks';
 import { fetchWithAuth } from '../../lib/api';
 import { socket } from '../../lib/socket';
 import StickerPicker from './StickerPicker';
+import LoadingScreen from './LoadingScreen';
 import type { Message } from '../types/message';
 import type { ChatInfo } from '../types/chat';
 
@@ -278,11 +279,7 @@ export default function ChatRoom() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <div className="text-white text-xl">Загрузка...</div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!chat) {
@@ -381,7 +378,23 @@ export default function ChatRoom() {
                 className="px-3 py-2 bg-white/10 rounded-xl text-2xl hover:bg-white/20 transition"
                 title="Стикеры"
               >
-                😀
+                <svg 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  width="24" 
+                  height="24" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round"
+                  className="text-white"
+                >
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                  <line x1="9" y1="9" x2="9.01" y2="9"/>
+                  <line x1="15" y1="9" x2="15.01" y2="9"/>
+                </svg>
               </button>
               <input
                 type="text"
