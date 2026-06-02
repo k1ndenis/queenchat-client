@@ -1,5 +1,6 @@
-export interface User {
+interface User {
   id: string;
   username: string;
   email: string;
+  created_at?: number;
 }
