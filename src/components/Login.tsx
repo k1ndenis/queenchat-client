@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from '../../lib/redux/hooks';
 import { setUser, fetchMe } from '../../lib/redux/slices/userSlice';
 import { fetchWithAuth } from '../../lib/api';
+import Logo from './Logo';
 
 export default function Login() {
   const dispatch = useAppDispatch();
@@ -57,11 +58,8 @@ export default function Login() {
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-md">
           <div className="text-center mb-8">
-            <div
-              className="w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-xl mx-auto mb-4 cursor-pointer"
-              onClick={() => navigate('/')}
-            >
-              <span className="text-3xl">💬</span>
+            <div className="flex justify-center mb-4">
+              <Logo variant="full" />
             </div>
             <h1 className="text-3xl font-bold text-white">Добро пожаловать</h1>
             <p className="text-purple-200 mt-2">Войдите в свой аккаунт</p>

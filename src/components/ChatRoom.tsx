@@ -7,6 +7,7 @@ import StickerPicker from './StickerPicker';
 import LoadingScreen from './LoadingScreen';
 import type { Message } from '../types/message';
 import type { ChatInfo } from '../types/chat';
+import Logo from './Logo';
 
 export default function ChatRoom() {
   const { id } = useParams<{ id: string }>();
@@ -304,9 +305,7 @@ export default function ChatRoom() {
               >
                 ← Назад
               </button>
-              <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-xl">💬</span>
-              </div>
+              <Logo variant="icon" />
               <h1 className="text-xl font-semibold text-white">{chatName}</h1>
             </div>
             {user && <span className="text-purple-200">{user.username}</span>}
