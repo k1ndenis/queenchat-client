@@ -207,12 +207,12 @@ export default function ChatList() {
                       >
                         <h3 className="text-white font-semibold">{displayName}</h3>
                         <p className="text-purple-300 text-sm">
-                          {chat.is_group ? '👥 Групповой чат' : '💬 Личный чат'}
+                          {chat.is_group ? 'Групповой чат' : 'Личный чат'}
                         </p>
                       </div>
                       <button
                         onClick={() => setDeleteChatId(chat.id)}
-                        className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-300 transition-all duration-200 p-2 cursor-pointer"
+                        className="text-red-400/60 hover:text-red-400 transition-all duration-200 p-2 cursor-pointer rounded-lg hover:bg-white/10"
                         title="Удалить чат"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
