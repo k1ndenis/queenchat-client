@@ -291,7 +291,18 @@ export default function ChatRoom() {
     );
   }
 
-  const chatName = chat.name || 'Чат';
+  const getChatDisplayName = () => {
+    if (chat?.name) return chat.name;
+    
+    if (!chat?.is_group && chat?.participants) {
+      const otherUser = chat.participants.find(p => p.user_id !== user?.id);
+      return otherUser?.username || 'Чат';
+    }
+    
+    return 'Чат';
+  };
+
+  const chatName = getChatDisplayName();
 
   return (
     <>
