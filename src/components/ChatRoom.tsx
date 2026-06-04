@@ -5,6 +5,7 @@ import { fetchWithAuth } from '../../lib/api';
 import { socket } from '../../lib/socket';
 import StickerPicker from './StickerPicker';
 import LoadingScreen from './LoadingScreen';
+import Notifications from './Notifications';
 import type { Message } from '../types/message';
 import type { ChatInfo } from '../types/chat';
 import Logo from './Logo';
@@ -108,7 +109,7 @@ export default function ChatRoom() {
     loadChatData();
   }, [id, user, apiUrl, navigate, ensureParticipant]);
 
-    useEffect(() => {
+  useEffect(() => {
     if (!user || !id) return;
 
     socket.connectToChat(id);
@@ -306,7 +307,7 @@ export default function ChatRoom() {
 
   return (
     <>
-      <div className="h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col">
         <div className="bg-white/5 backdrop-blur-sm border-b border-white/10 px-6 py-4">
           <div className="max-w-6xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -319,11 +320,16 @@ export default function ChatRoom() {
               <Logo variant="icon" />
               <h1 className="text-xl font-semibold text-white">{chatName}</h1>
             </div>
-            {user && <span className="text-purple-200">{user.username}</span>}
+            <div className="flex items-center gap-4">
+              <div className="relative z-50">
+      	        <Notifications />
+	      </div>
+              {user && <span className="text-purple-200">{user.username}</span>}
+            </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex-1 px-6 py-4">
           <div className="max-w-4xl mx-auto space-y-3">
             {messages.length === 0 ? (
               <div className="text-center text-purple-300 py-8">

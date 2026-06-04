@@ -4,13 +4,9 @@ import { fetchWithAuth } from '../../lib/api';
 import { useAppSelector, useAppDispatch } from '../../lib/redux/hooks';
 import { logout } from '../../lib/redux/slices/userSlice';
 import type { Chat } from '../types/chat';
+import type { User } from '../types/user';
 import LoadingScreen from './LoadingScreen';
-
-interface User {
-  id: string;
-  username: string;
-  email: string;
-}
+import Notifications from './Notifications';
 
 export default function ChatList() {
   const navigate = useNavigate();
@@ -167,7 +163,8 @@ export default function ChatList() {
               <h1 className="text-2xl font-bold text-white">Мои чаты</h1>
               <p className="text-purple-300 text-sm">Привет, {user?.username}!</p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-3 items-center">
+              <Notifications />
               <button
                 onClick={() => setIsModalOpen(true)}
                 className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 cursor-pointer"

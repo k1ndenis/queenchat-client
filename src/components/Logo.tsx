@@ -33,7 +33,7 @@ export default function Logo({ variant = 'full', className = '' }: LogoProps) {
         border border-white/40
       `}>
         <img
-          src="/logo.png"
+          src="/logo.webp"
           alt="QueenChat"
           className={`${variants[variant].image} object-contain`}
         />

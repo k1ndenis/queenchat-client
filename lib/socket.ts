@@ -70,6 +70,15 @@ class WebSocketManager {
           
           if (data.type === 'pong') return;
           
+          // ✅ Обработка уведомлений
+          if (data.type === 'notification') {
+            const callbacks = this.listeners.get('notification');
+            if (callbacks) {
+              callbacks.forEach(cb => cb(data));
+            }
+            return;
+          }
+          
           if (data.type === 'new_message') {
             const callbacks = this.listeners.get('new-message');
             if (callbacks) {
