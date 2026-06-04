@@ -25,7 +25,6 @@ export default function ChatRoom() {
     title: '',
     message: '',
   });
-  const [showMenu, setShowMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const apiUrl = import.meta.env.VITE_API_URL;
   const isMounted = useRef(true);
@@ -34,17 +33,6 @@ export default function ChatRoom() {
   const closeModal = () => {
     setModal({ isOpen: false, title: '', message: '' });
   };
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest('.user-menu')) {
-        setShowMenu(false);
-      }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
 
   useEffect(() => {
     isMounted.current = true;
@@ -318,16 +306,11 @@ export default function ChatRoom() {
 
   const chatName = getChatDisplayName();
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    navigate('/login');
-  };
-
   return (
     <>
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col">
-        <div className="bg-white/5 backdrop-blur-sm border-b border-white/10 px-6 py-4">
+        {/* Sticky header */}
+        <div className="sticky top-0 z-10 bg-white/5 backdrop-blur-sm border-b border-white/10 px-6 py-4">
           <div className="max-w-6xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
