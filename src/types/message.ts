@@ -8,3 +8,11 @@ export interface Message {
   is_sticker?: boolean;
   sticker_id?: string | null;
 }
+
+export interface LastMessage {
+  id: string;
+  content: string;
+  created_at: number;
+  sender_id: string;
+  sender_name?: string;
+}

@@ -5,6 +5,7 @@ import { useAppSelector, useAppDispatch } from '../../lib/redux/hooks';
 import { logout } from '../../lib/redux/slices/userSlice';
 import type { Chat } from '../types/chat';
 import type { User } from '../types/user';
+import type { LastMessage } from '../types/message';
 import LoadingScreen from './LoadingScreen';
 import Notifications from './Notifications';
 import UserMenu from './UserMenu';
@@ -14,8 +15,8 @@ export default function ChatList() {
   const dispatch = useAppDispatch();
   const { user } = useAppSelector(state => state.user);
   const [chats, setChats] = useState<Chat[]>([]);
+  const [lastMessages, setLastMessages] = useState<Map<string, LastMessage>>(new Map());
   const [loading, setLoading] = useState(true);
-  const [showMenu, setShowMenu] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState<User[]>([]);
@@ -34,17 +35,24 @@ export default function ChatList() {
     setModal({ isOpen: false, title: '', message: '' });
   };
 
-  // Закрыть меню при клике вне
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
-      if (!target.closest('.user-menu')) {
-        setShowMenu(false);
+  const loadLastMessage = async (chatId: string) => {
+    try {
+      const response = await fetchWithAuth(`${apiUrl}/chats/${chatId}/messages?limit=1`);
+      const data = await response.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const msg = data[0];
+        setLastMessages(prev => new Map(prev).set(chatId, {
+          id: msg.id,
+          content: msg.content,
+          created_at: msg.created_at,
+          sender_id: msg.sender_id,
+          sender_name: msg.sender_name
+        }));
       }
-    };
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, []);
+    } catch (error) {
+      console.error('Error loading last message:', error);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -53,7 +61,12 @@ export default function ChatList() {
       try {
         const response = await fetchWithAuth(`${apiUrl}/chats/`);
         const data = await response.json();
-        setChats(Array.isArray(data) ? data : []);
+        if (Array.isArray(data)) {
+          setChats(data);
+          data.forEach((chat: Chat) => {
+            loadLastMessage(chat.id);
+          });
+        }
       } catch (error) {
         console.error('Error loading chats:', error);
         setChats([]);
@@ -146,6 +159,11 @@ export default function ChatList() {
       }
       
       setChats(chats.filter(chat => chat.id !== deleteChatId));
+      setLastMessages(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(deleteChatId);
+        return newMap;
+      });
       setDeleteChatId(null);
     } catch (error) {
       console.error('Error deleting chat:', error);
@@ -162,6 +180,21 @@ export default function ChatList() {
     localStorage.removeItem('user');
     dispatch(logout());
     navigate('/login');
+  };
+
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp * 1000);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const hours = diff / (1000 * 60 * 60);
+    
+    if (hours < 24) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else if (hours < 48) {
+      return 'Вчера';
+    } else {
+      return date.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
+    }
   };
 
   if (loading) {
@@ -210,7 +243,7 @@ export default function ChatList() {
             </button>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             {chats.length === 0 ? (
               <div className="text-center text-purple-300 py-8">
                 У вас пока нет чатов. Создайте первый!
@@ -218,28 +251,54 @@ export default function ChatList() {
             ) : (
               chats.map(chat => {
                 let displayName = chat.name;
+                let avatarLetter = '';
                 if (!displayName && !chat.is_group) {
                   const otherUser = chat.participants.find(p => p.username !== user?.username);
                   displayName = otherUser?.username || 'Чат';
+                  avatarLetter = otherUser?.username?.[0]?.toUpperCase() || 'Ч';
+                } else {
+                  avatarLetter = displayName?.[0]?.toUpperCase() || 'Ч';
                 }
+                
+                const lastMsg = lastMessages.get(chat.id);
+                const isOwn = lastMsg?.sender_id === user?.id;
+                const msgPreview = lastMsg?.content || 'Нет сообщений';
+                
                 return (
                   <div
                     key={chat.id}
-                    className="bg-white/10 backdrop-blur-sm rounded-xl p-4 hover:bg-white/20 transition group"
+                    className="bg-white/10 backdrop-blur-sm rounded-xl p-3 hover:bg-white/20 transition-all duration-200 cursor-pointer group"
+                    onClick={() => navigate(`/chat/${chat.id}`)}
                   >
-                    <div className="flex justify-between items-center">
-                      <div 
-                        className="flex-1 cursor-pointer"
-                        onClick={() => navigate(`/chat/${chat.id}`)}
-                      >
-                        <h3 className="text-white font-semibold">{displayName}</h3>
-                        <p className="text-purple-300 text-sm">
-                          {chat.is_group ? 'Групповой чат' : 'Личный чат'}
+                    <div className="flex items-center gap-3">
+                      {/* Аватар */}
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md flex-shrink-0">
+                        <span className="text-white font-medium text-base">
+                          {avatarLetter}
+                        </span>
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex justify-between items-baseline gap-2">
+                          <h3 className="text-white font-semibold truncate">{displayName}</h3>
+                          {lastMsg && (
+                            <span className="text-purple-400 text-xs flex-shrink-0">
+                              {formatTime(lastMsg.created_at)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-purple-300 text-sm truncate">
+                          {isOwn && <span className="text-purple-400 mr-1">Вы: </span>}
+                          {msgPreview}
                         </p>
                       </div>
+                      
                       <button
-                        onClick={() => setDeleteChatId(chat.id)}
-                        className="text-red-400/60 hover:text-red-400 transition-all duration-200 p-2 cursor-pointer rounded-lg hover:bg-white/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteChatId(chat.id);
+                        }}
+                        className="text-red-400/50 hover:text-red-400 transition-all duration-200 p-2 rounded-lg hover:bg-white/10 flex-shrink-0"
                         title="Удалить чат"
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -279,13 +338,18 @@ export default function ChatList() {
                     <div
                       key={u.id}
                       onClick={() => setSelectedUser(u)}
-                      className={`p-3 rounded-lg cursor-pointer transition ${
+                      className={`p-3 rounded-lg cursor-pointer transition flex items-center gap-3 ${
                         selectedUser?.id === u.id
                           ? 'bg-gradient-to-r from-purple-500 to-pink-500'
                           : 'bg-white/10 hover:bg-white/20'
                       }`}
                     >
-                      <p className="text-pink-300 font-medium">{u.username}</p>
+                      <div className="w-8 h-8 rounded-full bg-purple-500/30 flex items-center justify-center">
+                        <span className="text-white text-sm font-medium">
+                          {u.username?.[0]?.toUpperCase()}
+                        </span>
+                      </div>
+                      <p className="text-white font-medium">{u.username}</p>
                     </div>
                   ))
                 )}
