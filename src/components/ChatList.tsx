@@ -7,6 +7,7 @@ import type { Chat } from '../types/chat';
 import type { User } from '../types/user';
 import LoadingScreen from './LoadingScreen';
 import Notifications from './Notifications';
+import UserMenu from './UserMenu';
 
 export default function ChatList() {
   const navigate = useNavigate();
@@ -14,6 +15,7 @@ export default function ChatList() {
   const { user } = useAppSelector(state => state.user);
   const [chats, setChats] = useState<Chat[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showMenu, setShowMenu] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [users, setUsers] = useState<User[]>([]);
@@ -31,6 +33,18 @@ export default function ChatList() {
   const closeModal = () => {
     setModal({ isOpen: false, title: '', message: '' });
   };
+
+  // Закрыть меню при клике вне
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.user-menu')) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -158,26 +172,42 @@ export default function ChatList() {
     <>
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
         <div className="max-w-4xl mx-auto">
-          <div className="flex justify-between items-center mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-white">Мои чаты</h1>
-              <p className="text-purple-300 text-sm">Привет, {user?.username}!</p>
+          <div className="flex justify-end items-center gap-3 mb-4">
+            <Notifications />
+            <UserMenu username={user?.username || ''} email={user?.email || ''} />
+          </div>
+
+          <div className="mb-6">
+            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
+                    <span className="text-white text-lg font-medium">
+                      {user?.username?.[0]?.toUpperCase()}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-purple-300 text-xs">Аккаунт</p>
+                    <p className="text-white font-semibold">{user?.username}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-purple-300 text-xs">Всего чатов</p>
+                  <p className="text-white font-semibold">{chats.length}</p>
+                </div>
+              </div>
             </div>
-            <div className="flex gap-3 items-center">
-              <Notifications />
-              <button
-                onClick={() => setIsModalOpen(true)}
-                className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:opacity-90 cursor-pointer"
-              >
-                + Новый чат
-              </button>
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 hover:text-red-200 transition cursor-pointer"
-              >
-                Выйти
-              </button>
-            </div>
+
+            <button
+              onClick={() => setIsModalOpen(true)}
+              className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg flex items-center justify-center hover:scale-105 transition z-50"
+              title="Новый чат"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </button>
           </div>
 
           <div className="space-y-3">

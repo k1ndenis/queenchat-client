@@ -5,3 +5,18 @@
     'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji',
     'Android Emoji', sans-serif;
 }
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.15s ease-out;
+}

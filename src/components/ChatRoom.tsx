@@ -9,6 +9,7 @@ import Notifications from './Notifications';
 import type { Message } from '../types/message';
 import type { ChatInfo } from '../types/chat';
 import Logo from './Logo';
+import UserMenu from './UserMenu';
 
 export default function ChatRoom() {
   const { id } = useParams<{ id: string }>();
@@ -24,6 +25,7 @@ export default function ChatRoom() {
     title: '',
     message: '',
   });
+  const [showMenu, setShowMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const apiUrl = import.meta.env.VITE_API_URL;
   const isMounted = useRef(true);
@@ -32,6 +34,17 @@ export default function ChatRoom() {
   const closeModal = () => {
     setModal({ isOpen: false, title: '', message: '' });
   };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.user-menu')) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     isMounted.current = true;
@@ -305,6 +318,12 @@ export default function ChatRoom() {
 
   const chatName = getChatDisplayName();
 
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
+
   return (
     <>
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col">
@@ -313,23 +332,27 @@ export default function ChatRoom() {
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate('/chat')}
-                className="text-white hover:text-purple-300 transition-colors cursor-pointer"
+                className="text-white hover:text-purple-300 transition-colors cursor-pointer p-2 rounded-lg hover:bg-white/10"
+                title="Назад"
               >
-                ← Назад
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="19" y1="12" x2="5" y2="12"/>
+                  <polyline points="12 19 5 12 12 5"/>
+                </svg>
               </button>
               <Logo variant="icon" />
               <h1 className="text-xl font-semibold text-white">{chatName}</h1>
             </div>
             <div className="flex items-center gap-4">
               <div className="relative z-50">
-      	        <Notifications />
-	      </div>
-              {user && <span className="text-purple-200">{user.username}</span>}
+                <Notifications />
+              </div>
+              <UserMenu username={user?.username || ''} email={user?.email || ''} />
             </div>
           </div>
         </div>
 
-        <div className="flex-1 px-6 py-4">
+        <div className="flex-1 overflow-y-auto px-6 py-4">
           <div className="max-w-4xl mx-auto space-y-3">
             {messages.length === 0 ? (
               <div className="text-center text-purple-300 py-8">
