@@ -65,6 +65,12 @@ export default function ChatRoom() {
     }
   }, [apiUrl]);
 
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+  }, []);
+
   useEffect(() => {
     if (!user || !id || id === 'undefined') return;
 
@@ -111,6 +117,12 @@ export default function ChatRoom() {
   }, [id, user, apiUrl, navigate, ensureParticipant]);
 
   useEffect(() => {
+    if (!loading && messages.length > 0) {
+      setTimeout(scrollToBottom, 200);
+    }
+  }, [loading, messages.length, scrollToBottom]);
+
+  useEffect(() => {
     if (!user || !id) return;
 
     socket.connectToChat(id);
@@ -126,6 +138,8 @@ export default function ChatRoom() {
         newMessages.sort((a, b) => a.created_at - b.created_at);
         return newMessages;
       });
+      
+      setTimeout(scrollToBottom, 100);
     };
 
     const handleMessageRead = (data: { message_id: string; user_id: string; chat_id: string }) => {
@@ -151,7 +165,7 @@ export default function ChatRoom() {
       socket.off('new-message', handleNewMessage);
       socket.off('message_read', handleMessageRead);
     };
-  }, [id, user]);
+  }, [id, user, scrollToBottom]);
 
   useEffect(() => {
     if (!user || !id || messages.length === 0) return;
@@ -172,10 +186,6 @@ export default function ChatRoom() {
     
     return () => clearTimeout(timeoutId);
   }, [messages, user, id, apiUrl]);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -219,6 +229,8 @@ export default function ChatRoom() {
       );
 
       socket.emit('send-message', { ...data, chat_id: id });
+      
+      setTimeout(scrollToBottom, 100);
       
     } catch (error) {
       messageIds.current.delete(tempId);
@@ -270,6 +282,9 @@ export default function ChatRoom() {
         prev.map(msg => msg.id === tempId ? { ...data } : msg)
           .sort((a, b) => a.created_at - b.created_at)
       );
+      
+      setTimeout(scrollToBottom, 100);
+      
     } catch (error) {
       messageIds.current.delete(tempId);
       setMessages(prev => prev.filter(msg => msg.id !== tempId));
@@ -308,8 +323,7 @@ export default function ChatRoom() {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col">
-        {/* Sticky header */}
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col h-screen">
         <div className="sticky top-0 z-10 bg-white/5 backdrop-blur-sm border-b border-white/10 px-6 py-4">
           <div className="max-w-6xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -335,59 +349,64 @@ export default function ChatRoom() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          <div className="max-w-4xl mx-auto space-y-3">
-            {messages.length === 0 ? (
-              <div className="text-center text-purple-300 py-8">
-                Нет сообщений. Напишите первое!
-              </div>
-            ) : (
-              messages.map((msg) => {
-                let formattedDate = '';
-                try {
-                  const date = new Date(msg.created_at * 1000);
-                  if (!isNaN(date.getTime())) {
-                    formattedDate = date.toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    });
-                  }
-                } catch {
-                }
-
-                const isOwn = msg.sender_id === user?.id;
-
-                return (
-                  <div
-                    key={msg.id}
-                    className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div
-                      className={`max-w-[70%] px-4 py-2 rounded-2xl ${
-                        isOwn
-                          ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                          : 'bg-white/10 text-white'
-                      }`}
-                    >
-                      {msg.is_sticker ? (
-                        <span className="text-6xl block leading-none">{msg.content}</span>
-                      ) : (
-                        <p>{msg.content}</p>
-                      )}
-                      <div className="flex items-center justify-end gap-1 mt-1">
-                        <p className="text-xs opacity-70">{formattedDate}</p>
-                        {isOwn && (
-                          <span className="text-xs opacity-70">
-                            {msg.is_read ? '✓✓' : '✓'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div className="max-w-4xl mx-auto flex flex-col min-h-full">
+              <div className="space-y-3">
+                {messages.length === 0 ? (
+                  <div className="text-center text-purple-300 py-8">
+                    Нет сообщений. Напишите первое!
                   </div>
-                );
-              })
-            )}
-            <div ref={messagesEndRef} />
+                ) : (
+                  messages.map((msg) => {
+                    let formattedDate = '';
+                    try {
+                      const date = new Date(msg.created_at * 1000);
+                      if (!isNaN(date.getTime())) {
+                        formattedDate = date.toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        });
+                      }
+                    } catch {
+                    }
+
+                    const isOwn = msg.sender_id === user?.id;
+
+                    return (
+                      <div
+                        key={msg.id}
+                        className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-[70%] px-4 py-2 rounded-2xl ${
+                            isOwn
+                              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                              : 'bg-white/10 text-white'
+                          }`}
+                        >
+                          {msg.is_sticker ? (
+                            <span className="text-6xl block leading-none">{msg.content}</span>
+                          ) : (
+                            <p>{msg.content}</p>
+                          )}
+                          <div className="flex items-center justify-end gap-1 mt-1">
+                            <p className="text-xs opacity-70">{formattedDate}</p>
+                            {isOwn && (
+                              <span className="text-xs opacity-70">
+                                {msg.is_read ? '✓✓' : '✓'}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+              <div className="mt-auto" />
+              <div ref={messagesEndRef} />
+            </div>
           </div>
         </div>
 
