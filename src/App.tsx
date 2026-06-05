@@ -9,6 +9,7 @@ import ChatRoom from './components/ChatRoom';
 import LoadingScreen from './components/LoadingScreen';
 import Logo from './components/Logo';
 import Profile from './components/Profile';
+import Settings from './components/Settings';
 
 function Home() {
   const navigate = useNavigate();
@@ -86,7 +87,8 @@ function AppContent() {
       <Route path="/register" element={<Register />} />
       <Route path="/chat" element={<ChatList />} />
       <Route path="/chat/:id" element={<ChatRoom />} />
-      <Route path="profile" element={<Profile />} />
+      <Route path="/profile" element={<Profile />} />
+      <Route path="/settings" element={<Settings />} />
     </Routes>
   );
 }

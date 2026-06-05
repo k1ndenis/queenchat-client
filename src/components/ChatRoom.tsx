@@ -6,6 +6,7 @@ import { socket } from '../../lib/socket';
 import StickerPicker from './StickerPicker';
 import LoadingScreen from './LoadingScreen';
 import Notifications from './Notifications';
+import { translations } from '../../lib/locales';
 import type { Message } from '../types/message';
 import type { ChatInfo } from '../types/chat';
 import Logo from './Logo';
@@ -14,7 +15,8 @@ import UserMenu from './UserMenu';
 export default function ChatRoom() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAppSelector(state => state.user);
+  const { user, language } = useAppSelector(state => state.user);
+  const t = translations[language as keyof typeof translations];
   const [chat, setChat] = useState<ChatInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -237,8 +239,8 @@ export default function ChatRoom() {
       setMessages(prev => prev.filter(msg => msg.id !== tempId));
       setModal({
         isOpen: true,
-        title: 'Ошибка',
-        message: 'Не удалось отправить сообщение',
+        title: t.error,
+        message: t.failedToSend,
       });
     }
   };
@@ -290,8 +292,8 @@ export default function ChatRoom() {
       setMessages(prev => prev.filter(msg => msg.id !== tempId));
       setModal({
         isOpen: true,
-        title: 'Ошибка',
-        message: 'Не удалось отправить стикер',
+        title: t.error,
+        message: t.failedToSend,
       });
     }
   };
@@ -303,7 +305,7 @@ export default function ChatRoom() {
   if (!chat) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <div className="text-white text-xl">Чат не найден</div>
+        <div className="text-white text-xl">{t.chatNotFound || 'Чат не найден'}</div>
       </div>
     );
   }
@@ -313,10 +315,10 @@ export default function ChatRoom() {
     
     if (!chat?.is_group && chat?.participants) {
       const otherUser = chat.participants.find(p => p.user_id !== user?.id);
-      return otherUser?.username || 'Чат';
+      return otherUser?.username || t.chat || 'Чат';
     }
     
-    return 'Чат';
+    return t.chat || 'Чат';
   };
 
   const chatName = getChatDisplayName();
@@ -330,7 +332,7 @@ export default function ChatRoom() {
               <button
                 onClick={() => navigate('/chat')}
                 className="text-white hover:text-purple-300 transition-colors cursor-pointer p-2 rounded-lg hover:bg-white/10"
-                title="Назад"
+                title={t.back}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="19" y1="12" x2="5" y2="12"/>
@@ -355,7 +357,7 @@ export default function ChatRoom() {
               <div className="space-y-3">
                 {messages.length === 0 ? (
                   <div className="text-center text-purple-300 py-8">
-                    Нет сообщений. Напишите первое!
+                    {t.noMessages}
                   </div>
                 ) : (
                   messages.map((msg) => {
@@ -417,7 +419,7 @@ export default function ChatRoom() {
                 type="button"
                 onClick={() => setShowStickerPicker(!showStickerPicker)}
                 className="flex-shrink-0 w-10 h-10 bg-white/10 rounded-xl hover:bg-white/20 transition flex items-center justify-center"
-                title="Стикеры"
+                title={t.stickers}
               >
                 <svg 
                   xmlns="http://www.w3.org/2000/svg" 
@@ -442,14 +444,14 @@ export default function ChatRoom() {
                 type="text"
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Введите сообщение..."
+                placeholder={t.enterMessage}
                 className="flex-1 min-w-0 px-3 py-2 md:px-4 md:py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all text-sm md:text-base"
               />
               
               <button
                 type="submit"
                 className="flex-shrink-0 w-10 h-10 bg-white/10 backdrop-blur-sm rounded-xl hover:bg-white/20 transition-all duration-300 cursor-pointer flex items-center justify-center border border-white/20"
-                title="Отправить"
+                title={t.send}
               >
                 <img
                   src="/logo.png"
@@ -483,7 +485,7 @@ export default function ChatRoom() {
               onClick={closeModal}
               className="w-full py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl hover:opacity-90 transition"
             >
-              Понятно
+              {t.ok}
             </button>
           </div>
         </div>

@@ -5,12 +5,13 @@ import { logout } from '../../lib/redux/slices/userSlice';
 import { fetchWithAuth } from '../../lib/api';
 import LoadingScreen from './LoadingScreen';
 import Notifications from './Notifications';
+import { translations } from '../../lib/locales';
 import type { UserProfile } from '../types/user';
 
 export default function Profile() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const { user } = useAppSelector(state => state.user);
+  const { user, language } = useAppSelector(state => state.user);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -24,6 +25,7 @@ export default function Profile() {
     message: '',
   });
   const apiUrl = import.meta.env.VITE_API_URL;
+  const t = translations[language as keyof typeof translations];
 
   const closeModal = () => {
     setModal({ isOpen: false, title: '', message: '' });
@@ -64,16 +66,16 @@ export default function Profile() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Ошибка обновления профиля');
+        throw new Error(errorData.detail || t.usernameTaken || 'Ошибка обновления профиля');
       }
 
       const data = await response.json();
       setProfile(data);
-      setSuccess('Профиль успешно обновлён');
+      setSuccess(t.profileUpdated || 'Профиль успешно обновлён');
       setIsEditing(false);
       
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Ошибка обновления');
+      setError(error instanceof Error ? error.message : t.error || 'Ошибка обновления');
     }
   };
 
@@ -85,7 +87,7 @@ export default function Profile() {
   };
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp * 1000).toLocaleDateString('ru-RU', {
+    return new Date(timestamp * 1000).toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -103,12 +105,16 @@ export default function Profile() {
           <div className="max-w-4xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
-                onClick={() => navigate(-1)}
-                className="text-white hover:text-purple-300 transition-colors cursor-pointer"
+                onClick={() => navigate('/chat')}
+                className="text-white hover:text-purple-300 transition-colors cursor-pointer p-2 rounded-lg hover:bg-white/10"
+                title={t.back}
               >
-                ← Назад
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="19" y1="12" x2="5" y2="12"/>
+                  <polyline points="12 19 5 12 12 5"/>
+                </svg>
               </button>
-              <h1 className="text-xl font-semibold text-white">Профиль</h1>
+              <h1 className="text-xl font-semibold text-white">{t.profile}</h1>
             </div>
             <div className="flex items-center gap-4">
               <Notifications />
@@ -116,7 +122,7 @@ export default function Profile() {
                 onClick={handleLogout}
                 className="px-4 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 hover:text-red-200 transition cursor-pointer"
               >
-                Выйти
+                {t.logout}
               </button>
             </div>
           </div>
@@ -135,7 +141,7 @@ export default function Profile() {
             {isEditing ? (
               <form onSubmit={handleUpdateProfile} className="space-y-4">
                 <div>
-                  <label className="block text-purple-200 text-sm mb-2">Имя пользователя</label>
+                  <label className="block text-purple-200 text-sm mb-2">{t.username}</label>
                   <input
                     type="text"
                     value={username}
@@ -145,7 +151,7 @@ export default function Profile() {
                   />
                 </div>
                 <div>
-                  <label className="block text-purple-200 text-sm mb-2">Email</label>
+                  <label className="block text-purple-200 text-sm mb-2">{t.email}</label>
                   <input
                     type="email"
                     value={email}
@@ -161,7 +167,7 @@ export default function Profile() {
                     type="submit"
                     className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:opacity-90 transition cursor-pointer"
                   >
-                    Сохранить
+                    {t.save}
                   </button>
                   <button
                     type="button"
@@ -173,29 +179,29 @@ export default function Profile() {
                     }}
                     className="flex-1 px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition cursor-pointer"
                   >
-                    Отмена
+                    {t.cancel}
                   </button>
                 </div>
               </form>
             ) : (
               <div className="space-y-4">
                 <div className="flex justify-between items-center pb-2 border-b border-white/10">
-                  <span className="text-purple-200">Имя пользователя</span>
+                  <span className="text-purple-200">{t.username}</span>
                   <span className="text-white font-medium">{profile?.username}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-white/10">
-                  <span className="text-purple-200">Email</span>
+                  <span className="text-purple-200">{t.email}</span>
                   <span className="text-white font-medium">{profile?.email}</span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-white/10">
-                  <span className="text-purple-200">Дата регистрации</span>
+                  <span className="text-purple-200">{t.registrationDate}</span>
                   <span className="text-white font-medium">{formatDate(profile?.created_at || 0)}</span>
                 </div>
                 <button
                   onClick={() => setIsEditing(true)}
                   className="w-full mt-6 px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition cursor-pointer"
                 >
-                  Редактировать профиль
+                  {t.editProfile}
                 </button>
               </div>
             )}
@@ -217,7 +223,7 @@ export default function Profile() {
               onClick={closeModal}
               className="w-full py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl hover:opacity-90 transition"
             >
-              Понятно
+              {t.ok}
             </button>
           </div>
         </div>

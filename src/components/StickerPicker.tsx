@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { stickers } from '../data/stickers';
+import { stickerCategories } from '../data/stickerCategories';
+import { getStickerName } from '../data/stickerNames';
+import { useAppSelector } from '../../lib/redux/hooks';
+import { translations } from '../../lib/locales';
 
 interface StickerPickerProps {
   onSelectSticker: (stickerId: string, emoji: string) => void;
@@ -8,37 +12,28 @@ interface StickerPickerProps {
 
 export default function StickerPicker({ onSelectSticker, onClose }: StickerPickerProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [category, setCategory] = useState('все');
-
-  const categories = [
-    { id: 'все', name: 'Все' },
-    { id: 'смайлы', name: '😀 Смайлы' },
-    { id: 'животные', name: '🐶 Животные' },
-    { id: 'еда', name: '🍕 Еда' },
-    { id: 'сердца', name: '❤️ Сердца' },
-    { id: 'жесты', name: '👋 Жесты' },
-    { id: 'предметы', name: '🎁 Предметы' },
-    { id: 'транспорт', name: '🚗 Транспорт' },
-    { id: 'спорт', name: '⚽ Спорт' },
-    { id: 'праздники', name: '🎄 Праздники' },
-  ];
+  const [category, setCategory] = useState('all');
+  const language = useAppSelector(state => state.user.language);
+  const t = translations[language as keyof typeof translations];
+  const categories = stickerCategories[language as keyof typeof stickerCategories];
 
   const filteredStickers = stickers.filter(sticker => {
-    const matchesSearch = sticker.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const stickerName = getStickerName(sticker.name, language);
+    const matchesSearch = stickerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       sticker.emoji.includes(searchTerm);
     
-    if (category === 'все') return matchesSearch;
+    if (category === 'all') return matchesSearch;
     
     const categoriesMap: Record<string, number[]> = {
-      'смайлы': Array.from({ length: 110 }, (_, i) => i + 1),
-      'животные': Array.from({ length: 80 }, (_, i) => i + 111),
-      'еда': Array.from({ length: 90 }, (_, i) => i + 191),
-      'сердца': Array.from({ length: 20 }, (_, i) => i + 281),
-      'жесты': Array.from({ length: 46 }, (_, i) => i + 301),
-      'предметы': Array.from({ length: 80 }, (_, i) => i + 347),
-      'транспорт': Array.from({ length: 38 }, (_, i) => i + 426),
-      'спорт': Array.from({ length: 55 }, (_, i) => i + 464),
-      'праздники': Array.from({ length: 23 }, (_, i) => i + 519),
+      smiles: Array.from({ length: 110 }, (_, i) => i + 1),
+      animals: Array.from({ length: 80 }, (_, i) => i + 111),
+      food: Array.from({ length: 90 }, (_, i) => i + 191),
+      hearts: Array.from({ length: 20 }, (_, i) => i + 281),
+      gestures: Array.from({ length: 46 }, (_, i) => i + 301),
+      objects: Array.from({ length: 80 }, (_, i) => i + 347),
+      transport: Array.from({ length: 38 }, (_, i) => i + 426),
+      sports: Array.from({ length: 55 }, (_, i) => i + 464),
+      holidays: Array.from({ length: 23 }, (_, i) => i + 519),
     };
     
     const categoryIds = categoriesMap[category] || [];
@@ -46,9 +41,9 @@ export default function StickerPicker({ onSelectSticker, onClose }: StickerPicke
   });
 
   return (
-    <div className="absolute bottom-16 left-4 bg-white/10 backdrop-blur-lg rounded-2xl p-4 w-96 shadow-xl z-50">
+    <div className="absolute bottom-16 left-4 right-4 sm:left-4 sm:right-auto sm:w-96 bg-white/10 backdrop-blur-lg rounded-2xl p-4 shadow-xl z-50">
       <div className="flex justify-between items-center mb-3">
-        <h3 className="text-white text-sm font-semibold">Стикеры</h3>
+        <h3 className="text-white text-sm font-semibold">{t.stickers}</h3>
         <button onClick={onClose} className="text-purple-300 hover:text-white">
           ✕
         </button>
@@ -56,7 +51,7 @@ export default function StickerPicker({ onSelectSticker, onClose }: StickerPicke
       
       <input
         type="text"
-        placeholder="Поиск стикеров..."
+        placeholder={t.searchStickers}
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
         className="w-full px-3 py-2 mb-3 bg-white/10 border border-purple-300/30 rounded-lg text-white text-sm placeholder-purple-300/50 focus:outline-none focus:border-purple-500"
@@ -78,13 +73,13 @@ export default function StickerPicker({ onSelectSticker, onClose }: StickerPicke
         ))}
       </div>
       
-      <div className="grid grid-cols-6 gap-2 max-h-64 overflow-y-auto">
+      <div className="grid grid-cols-6 sm:grid-cols-6 gap-2 max-h-64 overflow-y-auto">
         {filteredStickers.map((sticker) => (
           <button
             key={sticker.id}
             onClick={() => onSelectSticker(sticker.id, sticker.emoji)}
             className="text-3xl hover:scale-110 transition-transform p-2 hover:bg-white/10 rounded-xl"
-            title={sticker.name}
+            title={getStickerName(sticker.name, language)}
           >
             {sticker.emoji}
           </button>
@@ -92,7 +87,7 @@ export default function StickerPicker({ onSelectSticker, onClose }: StickerPicke
       </div>
       
       {filteredStickers.length === 0 && (
-        <p className="text-center text-purple-300 text-sm py-4">Стикеры не найдены</p>
+        <p className="text-center text-purple-300 text-sm py-4">{t.noStickersFound}</p>
       )}
     </div>
   );

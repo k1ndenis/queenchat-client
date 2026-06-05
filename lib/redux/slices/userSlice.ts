@@ -5,11 +5,15 @@ import { fetchWithAuth } from "../../api";
 interface UserState {
   user: User | null;
   loading: boolean;
+  language: string;
 }
+
+const savedLanguage = localStorage.getItem('queenchat_language');
 
 const initialState: UserState = {
   user: null,
   loading: true,
+  language: savedLanguage === 'en' ? 'en' : 'ru',
 };
 
 export const fetchMe = createAsyncThunk(
@@ -45,6 +49,10 @@ const userSlice = createSlice({
       state.user = null;
       state.loading = false;
     },
+    setLanguage: (state, action: PayloadAction<string>) => {
+      state.language = action.payload;
+      localStorage.setItem('queenchat_language', action.payload);
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -62,5 +70,5 @@ const userSlice = createSlice({
   },
 });
 
-export const { setUser, setLoading, logout } = userSlice.actions;
+export const { setUser, setLoading, logout, setLanguage } = userSlice.actions;
 export default userSlice.reducer;
