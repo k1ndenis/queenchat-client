@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppDispatch } from '../../lib/redux/hooks';
+import { useAppDispatch, useAppSelector } from '../../lib/redux/hooks';
 import { setUser } from '../../lib/redux/slices/userSlice';
 import { fetchWithAuth } from '../../lib/api';
 import Logo from './Logo';
+import { translations } from '../../lib/locales';
 
 export default function Register() {
   const dispatch = useAppDispatch();
@@ -16,6 +17,9 @@ export default function Register() {
     title: '',
     message: '',
   });
+  
+  const language = useAppSelector(state => state.user.language);
+  const t = translations[language as keyof typeof translations];
 
   const closeModal = () => {
     setModal({ isOpen: false, title: '', message: '' });
@@ -39,16 +43,16 @@ export default function Register() {
       } else {
         setModal({
           isOpen: true,
-          title: 'Ошибка регистрации',
-          message: data.error || 'Не удалось зарегистрироваться. Попробуйте другой email.',
+          title: t.registerError,
+          message: data.error || t.registerFailed,
         });
       }
     } catch (error) {
       console.error('Register error:', error);
       setModal({
         isOpen: true,
-        title: 'Ошибка подключения',
-        message: 'Не удалось подключиться к серверу. Проверьте соединение.',
+        title: t.connectionError,
+        message: t.connectionErrorMessage,
       });
     }
   };
@@ -61,15 +65,15 @@ export default function Register() {
             <div className="flex justify-center mb-4">
               <Logo variant="full" />
             </div>
-            <h1 className="text-3xl font-bold text-white">Создать аккаунт</h1>
-            <p className="text-purple-200 mt-2">Присоединяйтесь к QueenChat</p>
+            <h1 className="text-3xl font-bold text-white">{t.createAccount}</h1>
+            <p className="text-purple-200 mt-2">{t.joinQueenChat}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <input
                 type="text"
-                placeholder="Имя пользователя"
+                placeholder={t.username}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
@@ -79,7 +83,7 @@ export default function Register() {
             <div>
               <input
                 type="email"
-                placeholder="Email"
+                placeholder={t.email}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -89,7 +93,7 @@ export default function Register() {
             <div>
               <input
                 type="password"
-                placeholder="Пароль"
+                placeholder={t.password}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -100,7 +104,7 @@ export default function Register() {
               type="submit"
               className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-purple-500/25 transition-all duration-300 hover:scale-[1.02] cursor-pointer"
             >
-              Зарегистрироваться
+              {t.register}
             </button>
           </form>
 
@@ -109,7 +113,7 @@ export default function Register() {
               onClick={() => navigate('/login')}
               className="text-purple-300 hover:text-white transition-colors duration-300 cursor-pointer"
             >
-              Уже есть аккаунт? Войти
+              {t.haveAccount}
             </button>
           </div>
         </div>
@@ -129,7 +133,7 @@ export default function Register() {
               onClick={closeModal}
               className="w-full py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl hover:opacity-90 transition"
             >
-              Понятно
+              {t.ok}
             </button>
           </div>
         </div>

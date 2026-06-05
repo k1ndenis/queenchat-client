@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../../lib/api';
 import { useAppSelector, useAppDispatch } from '../../lib/redux/hooks';
 import { logout } from '../../lib/redux/slices/userSlice';
+import { translations } from '../../lib/locales';
 import type { Chat } from '../types/chat';
 import type { User } from '../types/user';
 import type { LastMessage } from '../types/message';
@@ -13,7 +14,8 @@ import UserMenu from './UserMenu';
 export default function ChatList() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const { user } = useAppSelector(state => state.user);
+  const { user, language } = useAppSelector(state => state.user);
+  const t = translations[language as keyof typeof translations];
   const [chats, setChats] = useState<Chat[]>([]);
   const [lastMessages, setLastMessages] = useState<Map<string, LastMessage>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -95,7 +97,7 @@ export default function ChatList() {
         }
       } catch (error) {
         console.error('Error loading users:', error);
-        setError('Не удалось загрузить список пользователей');
+        setError(t.failedToLoadUsers || 'Не удалось загрузить список пользователей');
       }
     };
     loadUsers();
@@ -115,7 +117,7 @@ export default function ChatList() {
 
   const handleCreateChat = async () => {
     if (!selectedUser) {
-      setError('Выберите пользователя');
+      setError(t.selectUser || 'Выберите пользователя');
       return;
     }
     
@@ -131,7 +133,7 @@ export default function ChatList() {
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Не удалось создать чат');
+        throw new Error(errorData.detail || t.failedToCreateChat || 'Не удалось создать чат');
       }
       
       const newChat = await response.json();
@@ -142,7 +144,7 @@ export default function ChatList() {
       navigate(`/chat/${newChat.id}`);
     } catch (error) {
       console.error('Error creating chat:', error);
-      setError(error instanceof Error ? error.message : 'Не удалось создать чат');
+      setError(error instanceof Error ? error.message : (t.failedToCreateChat || 'Не удалось создать чат'));
     }
   };
 
@@ -169,17 +171,10 @@ export default function ChatList() {
       console.error('Error deleting chat:', error);
       setModal({
         isOpen: true,
-        title: 'Ошибка',
-        message: 'Не удалось удалить чат',
+        title: t.error || 'Ошибка',
+        message: t.failedToDeleteChat || 'Не удалось удалить чат',
       });
     }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    dispatch(logout());
-    navigate('/login');
   };
 
   const formatTime = (timestamp: number) => {
@@ -191,7 +186,7 @@ export default function ChatList() {
     if (hours < 24) {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } else if (hours < 48) {
-      return 'Вчера';
+      return t.yesterday || 'Вчера';
     } else {
       return date.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
     }
@@ -220,12 +215,12 @@ export default function ChatList() {
                     </span>
                   </div>
                   <div>
-                    <p className="text-purple-300 text-xs">Аккаунт</p>
+                    <p className="text-purple-300 text-xs">{t.account || 'Аккаунт'}</p>
                     <p className="text-white font-semibold">{user?.username}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-purple-300 text-xs">Всего чатов</p>
+                  <p className="text-purple-300 text-xs">{t.totalChats || 'Всего чатов'}</p>
                   <p className="text-white font-semibold">{chats.length}</p>
                 </div>
               </div>
@@ -234,7 +229,7 @@ export default function ChatList() {
             <button
               onClick={() => setIsModalOpen(true)}
               className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg flex items-center justify-center hover:scale-105 transition z-50"
-              title="Новый чат"
+              title={t.newChat || 'Новый чат'}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
                 <line x1="12" y1="5" x2="12" y2="19"/>
@@ -246,7 +241,7 @@ export default function ChatList() {
           <div className="space-y-2">
             {chats.length === 0 ? (
               <div className="text-center text-purple-300 py-8">
-                У вас пока нет чатов. Создайте первый!
+                {t.noChats || 'У вас пока нет чатов. Создайте первый!'}
               </div>
             ) : (
               chats.map(chat => {
@@ -254,7 +249,7 @@ export default function ChatList() {
                 let avatarLetter = '';
                 if (!displayName && !chat.is_group) {
                   const otherUser = chat.participants.find(p => p.username !== user?.username);
-                  displayName = otherUser?.username || 'Чат';
+                  displayName = otherUser?.username || t.chat || 'Чат';
                   avatarLetter = otherUser?.username?.[0]?.toUpperCase() || 'Ч';
                 } else {
                   avatarLetter = displayName?.[0]?.toUpperCase() || 'Ч';
@@ -262,7 +257,7 @@ export default function ChatList() {
                 
                 const lastMsg = lastMessages.get(chat.id);
                 const isOwn = lastMsg?.sender_id === user?.id;
-                const msgPreview = lastMsg?.content || 'Нет сообщений';
+                const msgPreview = lastMsg?.content || t.noMessages || 'Нет сообщений';
                 
                 return (
                   <div
@@ -287,7 +282,7 @@ export default function ChatList() {
                           )}
                         </div>
                         <p className="text-purple-300 text-sm truncate">
-                          {isOwn && <span className="text-purple-400 mr-1">Вы: </span>}
+                          {isOwn && <span className="text-purple-400 mr-1">{t.you || 'Вы'}: </span>}
                           {msgPreview}
                         </p>
                       </div>
@@ -298,7 +293,7 @@ export default function ChatList() {
                           setDeleteChatId(chat.id);
                         }}
                         className="text-red-400/50 hover:text-red-400 transition-all duration-200 p-2 rounded-lg hover:bg-white/10 flex-shrink-0"
-                        title="Удалить чат"
+                        title={t.deleteChat || 'Удалить чат'}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                           <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -315,14 +310,14 @@ export default function ChatList() {
         {isModalOpen && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="bg-gradient-to-br from-slate-800 to-purple-900 rounded-2xl p-6 w-full max-w-md mx-4">
-              <h2 className="text-2xl font-bold text-white mb-4">Новый чат</h2>
-              <p className="text-purple-200 mb-4">Выберите пользователя для начала общения</p>
+              <h2 className="text-2xl font-bold text-white mb-4">{t.newChat}</h2>
+              <p className="text-purple-200 mb-4">{t.selectUser}</p>
               
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Поиск по имени"
+                placeholder={t.searchUser}
                 className="w-full px-4 py-2 bg-white/10 border border-purple-300/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 mb-4"
                 autoFocus
               />
@@ -330,7 +325,7 @@ export default function ChatList() {
               <div className="max-h-64 overflow-y-auto mb-4 space-y-2">
                 {filteredUsers.length === 0 ? (
                   <p className="text-purple-300 text-center py-4">
-                    {searchQuery ? 'Пользователи не найдены' : 'Нет других пользователей'}
+                    {searchQuery ? t.userNotFound : t.noUsers}
                   </p>
                 ) : (
                   filteredUsers.map(u => (
@@ -368,7 +363,7 @@ export default function ChatList() {
                       : 'bg-white/20 text-white/50 cursor-not-allowed'
                   }`}
                 >
-                  Создать чат
+                  {t.createChat}
                 </button>
                 <button
                   onClick={() => {
@@ -379,7 +374,7 @@ export default function ChatList() {
                   }}
                   className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition cursor-pointer"
                 >
-                  Отмена
+                  {t.cancel}
                 </button>
               </div>
             </div>
@@ -389,21 +384,21 @@ export default function ChatList() {
         {deleteChatId && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
             <div className="bg-gradient-to-br from-slate-800 to-red-900 rounded-2xl p-6 w-full max-w-md mx-4">
-              <h2 className="text-2xl font-bold text-white mb-4">Удалить чат?</h2>
-              <p className="text-purple-200 mb-6">Все сообщения будут удалены без возможности восстановления.</p>
+              <h2 className="text-2xl font-bold text-white mb-4">{t.deleteChat}</h2>
+              <p className="text-purple-200 mb-6">{t.deleteChatWarning}</p>
               
               <div className="flex gap-3">
                 <button
                   onClick={handleDeleteChat}
                   className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition cursor-pointer"
                 >
-                  Удалить
+                  {t.delete}
                 </button>
                 <button
                   onClick={() => setDeleteChatId(null)}
                   className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition cursor-pointer"
                 >
-                  Отмена
+                  {t.cancel}
                 </button>
               </div>
             </div>
@@ -424,7 +419,7 @@ export default function ChatList() {
                 onClick={closeModal}
                 className="w-full py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl hover:opacity-90 transition cursor-pointer"
               >
-                Понятно
+                {t.ok}
               </button>
             </div>
           </div>

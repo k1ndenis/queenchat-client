@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAppSelector } from '../../lib/redux/hooks';
 import { fetchWithAuth } from '../../lib/api';
 import { socket } from '../../lib/socket';
+import { translations } from '../../lib/locales';
 import type { Notification } from '../types/notification';
 import { createPortal } from 'react-dom';
 
 export default function Notifications() {
   const navigate = useNavigate();
+  const language = useAppSelector(state => state.user.language);
+  const t = translations[language as keyof typeof translations];
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -43,7 +47,7 @@ export default function Notifications() {
     
     const newNotification: Notification = {
       id: notificationData.id || Date.now().toString(),
-      title: notificationData.title || 'Новое уведомление',
+      title: notificationData.title || t.newMessage || 'Новое уведомление',
       message: notificationData.message || '',
       type: notificationData.type || 'info',
       chat_id: notificationData.chat_id || '',
@@ -107,7 +111,7 @@ export default function Notifications() {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-white hover:text-purple-300 transition cursor-pointer"
-        title="Уведомления"
+        title={t.notifications || 'Уведомления'}
       >
         <svg 
           xmlns="http://www.w3.org/2000/svg" 
@@ -141,20 +145,20 @@ export default function Notifications() {
             bg-slate-800 shadow-2xl border-l border-white/20
             flex flex-col animate-slide-in">
             <div className="p-4 border-b border-white/10 flex justify-between items-center">
-              <h3 className="text-white font-semibold text-lg">Уведомления</h3>
+              <h3 className="text-white font-semibold text-lg">{t.notifications || 'Уведомления'}</h3>
               <div className="flex gap-2">
                 {unreadCount > 0 && (
                   <button
                     onClick={markAllAsRead}
                     className="text-xs text-purple-400 hover:text-purple-300 transition px-2 py-1 rounded cursor-pointer"
                   >
-                    Прочитать всё
+                    {t.markAllRead || 'Прочитать всё'}
                   </button>
                 )}
                 <button
                   onClick={() => setIsOpen(false)}
                   className="text-white/60 hover:text-white transition p-1 rounded hover:bg-white/10"
-                  title="Закрыть"
+                  title={t.close || 'Закрыть'}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <line x1="18" y1="6" x2="6" y2="18"/>
@@ -166,7 +170,7 @@ export default function Notifications() {
             
             <div className="flex-1 overflow-y-auto">
               {notifications.length === 0 ? (
-                <p className="text-purple-300 text-center py-8">Нет уведомлений</p>
+                <p className="text-purple-300 text-center py-8">{t.noNotifications || 'Нет уведомлений'}</p>
               ) : (
                 notifications.map(n => (
                   <div

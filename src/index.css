@@ -41,3 +41,17 @@
 .messages-content {
   margin-top: auto;
 }
+
+.light {
+  --bg-gradient-from: #f3e8ff;
+  --bg-gradient-to: #e9d5ff;
+  --text-color: #1e1b4b;
+}
+
+.light .bg-white\/10 {
+  background-color: rgba(255, 255, 255, 0.8);
+}
+
+.light .text-white {
+  color: #1e1b4b;
+}
