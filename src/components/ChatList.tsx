@@ -37,7 +37,7 @@ export default function ChatList() {
 
   const loadLastMessage = async (chatId: string) => {
     try {
-      const response = await fetchWithAuth(`${apiUrl}/chats/${chatId}/messages?limit=1`);
+      const response = await fetchWithAuth(`${apiUrl}/chats/${chatId}/messages?limit=1&order=desc`);
       const data = await response.json();
       if (Array.isArray(data) && data.length > 0) {
         const msg = data[0];
@@ -271,7 +271,6 @@ export default function ChatList() {
                     onClick={() => navigate(`/chat/${chat.id}`)}
                   >
                     <div className="flex items-center gap-3">
-                      {/* Аватар */}
                       <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md flex-shrink-0">
                         <span className="text-white font-medium text-base">
                           {avatarLetter}
