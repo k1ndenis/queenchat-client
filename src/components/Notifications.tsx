@@ -87,10 +87,27 @@ export default function Notifications() {
       await fetchWithAuth(`${apiUrl}/notifications/read/all`, {
         method: 'PATCH',
       });
+      
+      const chatsResponse = await fetchWithAuth(`${apiUrl}/chats/`);
+      const chats = await chatsResponse.json();
+      
+      if (Array.isArray(chats) && chats.length > 0) {
+        await Promise.all(
+          chats.map(chat =>
+            fetchWithAuth(`${apiUrl}/chats/${chat.id}/messages/read/all`, {
+              method: 'POST',
+            }).catch(err => console.error(`Error marking chat ${chat.id}:`, err))
+          )
+        );
+      }
+      
       setNotifications(prev =>
         prev.map(n => ({ ...n, is_read: true }))
       );
       setUnreadCount(0);
+      
+      window.dispatchEvent(new CustomEvent('refreshChatList'));
+      
     } catch (error) {
       console.error('Error marking all as read:', error);
     }
