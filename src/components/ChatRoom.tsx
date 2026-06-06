@@ -119,6 +119,41 @@ export default function ChatRoom() {
   }, [id, user, apiUrl, navigate, ensureParticipant]);
 
   useEffect(() => {
+    if (!user || !id || loading) return;
+
+    const markEverythingAsRead = async () => {
+      try {
+        const messagesResponse = await fetchWithAuth(`${apiUrl}/chats/${id}/messages/read/all`, {
+          method: 'POST',
+        });
+        const messagesData = await messagesResponse.json();
+
+        const notificationsResponse = await fetchWithAuth(`${apiUrl}/notifications/read/by-chat/${id}`, {
+          method: 'PATCH',
+        });
+        const notificationsData = await notificationsResponse.json();
+
+        setMessages(prev =>
+          prev.map(msg => {
+            if (msg.sender_id !== user.id && !msg.is_read) {
+              return { ...msg, is_read: true };
+            }
+            return msg;
+          })
+        );
+      } catch (error) {
+        console.error('Error marking as read:', error);
+      }
+    };
+
+    const timer = setTimeout(() => {
+      markEverythingAsRead();
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [id, user, loading, apiUrl]);
+
+  useEffect(() => {
     if (!loading && messages.length > 0) {
       setTimeout(scrollToBottom, 200);
     }
@@ -145,14 +180,25 @@ export default function ChatRoom() {
     };
 
     const handleMessageRead = (data: { message_id: string; user_id: string; chat_id: string }) => {
-      console.log('🔵 Message read received:', data);
-      
       if (data.chat_id !== id) return;
       
       setMessages(prev =>
         prev.map(msg => {
           if (msg.id === data.message_id) {
-            console.log('✅ Updating message', msg.id, 'is_read to true');
+            return { ...msg, is_read: true };
+          }
+          return msg;
+        })
+      );
+    };
+
+    const handleMessagesRead = (data: { chat_id: string; user_id: string }) => {
+      if (data.chat_id !== id) return;
+      if (data.user_id === user.id) return;
+      
+      setMessages(prev =>
+        prev.map(msg => {
+          if (msg.sender_id !== user.id && !msg.is_read) {
             return { ...msg, is_read: true };
           }
           return msg;
@@ -162,10 +208,12 @@ export default function ChatRoom() {
 
     socket.on('new-message', handleNewMessage);
     socket.on('message_read', handleMessageRead);
+    socket.on('messages_read', handleMessagesRead);
 
     return () => {
       socket.off('new-message', handleNewMessage);
       socket.off('message_read', handleMessageRead);
+      socket.off('messages_read', handleMessagesRead);
     };
   }, [id, user, scrollToBottom]);
 

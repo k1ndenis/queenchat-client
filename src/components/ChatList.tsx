@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../../lib/api';
-import { useAppSelector, useAppDispatch } from '../../lib/redux/hooks';
+import { socket } from '../../lib/socket';
+import { useAppSelector } from '../../lib/redux/hooks';
 import { translations } from '../../lib/locales';
 import type { Chat } from '../types/chat';
 import type { User } from '../types/user';
@@ -12,11 +13,11 @@ import UserMenu from './UserMenu';
 
 export default function ChatList() {
   const navigate = useNavigate();
-  const dispatch = useAppDispatch();
   const { user, language } = useAppSelector(state => state.user);
   const t = translations[language as keyof typeof translations];
   const [chats, setChats] = useState<Chat[]>([]);
   const [lastMessages, setLastMessages] = useState<Map<string, LastMessage>>(new Map());
+  const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -30,13 +31,32 @@ export default function ChatList() {
     title: '',
     message: '',
   });
-  const apiUrl = import.meta.env.VITE_API_URL;
 
   const closeModal = () => {
     setModal({ isOpen: false, title: '', message: '' });
   };
 
-  const loadLastMessage = async (chatId: string) => {
+  const loadUnreadCount = useCallback(async (chatId: string) => {
+    try {
+      const response = await fetchWithAuth(`/chats/${chatId}/messages/unread/count`);
+      const data = await response.json();
+      if (data.count > 0) {
+        setUnreadCounts(prev => new Map(prev).set(chatId, data.count));
+      } else {
+        setUnreadCounts(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(chatId);
+          return newMap;
+        });
+      }
+      return data.count;
+    } catch (error) {
+      console.error('Error loading unread count:', error);
+      return 0;
+    }
+  }, []);
+
+  const loadLastMessage = useCallback(async (chatId: string) => {
     try {
       const response = await fetchWithAuth(`/chats/${chatId}/last-message`);
       const data = await response.json();
@@ -55,7 +75,7 @@ export default function ChatList() {
       console.error('Error loading last message:', error);
     }
     return null;
-  };
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -68,8 +88,14 @@ export default function ChatList() {
         
         if (Array.isArray(data)) {
           setChats(data);
-          const lastMsgPromises = data.map(chat => loadLastMessage(chat.id));
-          await Promise.all(lastMsgPromises);
+          
+          const promises = data.map(async (chat: Chat) => {
+            await Promise.all([
+              loadLastMessage(chat.id),
+              loadUnreadCount(chat.id)
+            ]);
+          });
+          await Promise.all(promises);
         }
       } catch (error) {
         console.error('Error loading chats:', error);
@@ -80,10 +106,10 @@ export default function ChatList() {
     };
     
     loadChats();
-  }, [user, apiUrl]);
+  }, [user, loadLastMessage, loadUnreadCount]);
 
   useEffect(() => {
-    if (chats.length === 0 || lastMessages.size === 0) return;
+    if (chats.length === 0) return;
     
     const sorted = [...chats].sort((a, b) => {
       const msgA = lastMessages.get(a.id);
@@ -96,7 +122,46 @@ export default function ChatList() {
     if (JSON.stringify(sorted) !== JSON.stringify(chats)) {
       setChats(sorted);
     }
-  }, [lastMessages]);
+  }, [lastMessages, chats]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const handleNewMessage = (newMsg: any) => {
+      if (newMsg.sender_id !== user.id) {
+        loadUnreadCount(newMsg.chat_id);
+        loadLastMessage(newMsg.chat_id);
+        
+        setChats(prev => {
+          const chatIndex = prev.findIndex(c => c.id === newMsg.chat_id);
+          if (chatIndex !== -1) {
+            const updatedChats = [...prev];
+            const chat = updatedChats.splice(chatIndex, 1)[0];
+            return [chat, ...updatedChats];
+          }
+          return prev;
+        });
+      }
+    };
+
+    const handleMessageRead = (data: { chat_id: string; user_id: string }) => {
+      if (data.user_id === user.id) return;
+      loadUnreadCount(data.chat_id);
+    };
+
+    const handleMessagesRead = (data: { chat_id: string; user_id: string }) => {
+      setUnreadCounts(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(data.chat_id);
+        return newMap;
+      });
+      loadLastMessage(data.chat_id);
+    };
+
+    socket.on('new-message', handleNewMessage);
+    socket.on('message_read', handleMessageRead);
+    socket.on('messages_read', handleMessagesRead);
+  }, [user, loadUnreadCount, loadLastMessage]);
 
   useEffect(() => {
     if (!isModalOpen) return;
@@ -109,10 +174,6 @@ export default function ChatList() {
           const otherUsers = data.filter((u: User) => u.id !== user?.id);
           setUsers(otherUsers);
           setFilteredUsers(otherUsers);
-        } else {
-          console.error('Expected array, got:', typeof data);
-          setUsers([]);
-          setFilteredUsers([]);
         }
       } catch (error) {
         console.error('Error loading users:', error);
@@ -120,7 +181,7 @@ export default function ChatList() {
       }
     };
     loadUsers();
-  }, [isModalOpen, apiUrl, user?.id]);
+  }, [isModalOpen, user?.id, t.failedToLoadUsers]);
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -133,6 +194,48 @@ export default function ChatList() {
       setFilteredUsers(filtered);
     }
   }, [searchQuery, users]);
+
+  useEffect(() => {
+    const handleRefreshChatList = async () => {
+      try {
+        const response = await fetchWithAuth(`/chats/`);
+        const data = await response.json();
+        
+        if (Array.isArray(data)) {
+          setChats(data);
+          
+          const newUnreadCounts = new Map();
+          await Promise.all(
+            data.map(async (chat: Chat) => {
+              const countResponse = await fetchWithAuth(`/chats/${chat.id}/messages/unread/count`);
+              const countData = await countResponse.json();
+              if (countData.count > 0) {
+                newUnreadCounts.set(chat.id, countData.count);
+              }
+              
+              const lastMsgResponse = await fetchWithAuth(`/chats/${chat.id}/last-message`);
+              const lastMsgData = await lastMsgResponse.json();
+              if (lastMsgData && lastMsgData.id) {
+                setLastMessages(prev => new Map(prev).set(chat.id, {
+                  id: lastMsgData.id,
+                  content: lastMsgData.content,
+                  created_at: lastMsgData.created_at,
+                  sender_id: lastMsgData.sender_id,
+                  sender_name: lastMsgData.sender_name || ''
+                }));
+              }
+            })
+          );
+          setUnreadCounts(newUnreadCounts);
+        }
+      } catch (error) {
+        console.error('Error refreshing chat list:', error);
+      }
+    };
+    
+    window.addEventListener('refreshChatList', handleRefreshChatList);
+    return () => window.removeEventListener('refreshChatList', handleRefreshChatList);
+  }, []);
 
   const handleCreateChat = async () => {
     if (!selectedUser) {
@@ -179,8 +282,13 @@ export default function ChatList() {
         throw new Error('Failed to delete chat');
       }
       
-      setChats(chats.filter(chat => chat.id !== deleteChatId));
+      setChats(prev => prev.filter(chat => chat.id !== deleteChatId));
       setLastMessages(prev => {
+        const newMap = new Map(prev);
+        newMap.delete(deleteChatId);
+        return newMap;
+      });
+      setUnreadCounts(prev => {
         const newMap = new Map(prev);
         newMap.delete(deleteChatId);
         return newMap;
@@ -277,30 +385,42 @@ export default function ChatList() {
                 const lastMsg = lastMessages.get(chat.id);
                 const isOwn = lastMsg?.sender_id === user?.id;
                 const msgPreview = lastMsg?.content || t.noMessages || 'Нет сообщений';
+                const unreadCount = unreadCounts.get(chat.id) || 0;
                 
                 return (
                   <div
                     key={chat.id}
-                    className="bg-white/10 backdrop-blur-sm rounded-xl p-3 hover:bg-white/20 transition-all duration-200 cursor-pointer group"
+                    className={`bg-white/10 backdrop-blur-sm rounded-xl p-3 hover:bg-white/20 transition-all duration-200 cursor-pointer group ${
+                      unreadCount > 0 ? 'bg-purple-500/20 border-l-4 border-l-purple-500' : ''
+                    }`}
                     onClick={() => navigate(`/chat/${chat.id}`)}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md flex-shrink-0">
-                        <span className="text-white font-medium text-base">
-                          {avatarLetter}
-                        </span>
+                      <div className="relative">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md flex-shrink-0">
+                          <span className="text-white font-medium text-base">
+                            {avatarLetter}
+                          </span>
+                        </div>
+                        {unreadCount > 0 && (
+                          <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-[20px] flex items-center justify-center px-1 font-bold">
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </div>
+                        )}
                       </div>
                       
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-baseline gap-2">
-                          <h3 className="text-white font-semibold truncate">{displayName}</h3>
+                          <h3 className={`font-semibold truncate ${unreadCount > 0 ? 'text-white' : 'text-white/80'}`}>
+                            {displayName}
+                          </h3>
                           {lastMsg && (
-                            <span className="text-purple-400 text-xs flex-shrink-0">
+                            <span className={`text-xs flex-shrink-0 ${unreadCount > 0 ? 'text-purple-300' : 'text-purple-400/60'}`}>
                               {formatTime(lastMsg.created_at)}
                             </span>
                           )}
                         </div>
-                        <p className="text-purple-300 text-sm truncate">
+                        <p className={`text-sm truncate ${unreadCount > 0 ? 'text-white font-medium' : 'text-purple-300'}`}>
                           {isOwn && <span className="text-purple-400 mr-1">{t.you || 'Вы'}: </span>}
                           {msgPreview}
                         </p>
