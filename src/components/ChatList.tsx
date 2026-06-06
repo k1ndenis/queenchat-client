@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWithAuth } from '../../lib/api';
 import { useAppSelector, useAppDispatch } from '../../lib/redux/hooks';
-import { logout } from '../../lib/redux/slices/userSlice';
 import { translations } from '../../lib/locales';
 import type { Chat } from '../types/chat';
 import type { User } from '../types/user';
@@ -50,10 +49,12 @@ export default function ChatList() {
           sender_id: msg.sender_id,
           sender_name: msg.sender_name
         }));
+        return msg.created_at;
       }
     } catch (error) {
       console.error('Error loading last message:', error);
     }
+    return null;
   };
 
   useEffect(() => {
@@ -64,10 +65,15 @@ export default function ChatList() {
         const response = await fetchWithAuth(`${apiUrl}/chats/`);
         const data = await response.json();
         if (Array.isArray(data)) {
-          setChats(data);
-          data.forEach((chat: Chat) => {
-            loadLastMessage(chat.id);
-          });
+          const chatsWithTime = await Promise.all(
+            data.map(async (chat: Chat) => {
+              const lastMsgTime = await loadLastMessage(chat.id);
+              return { ...chat, lastMsgTime: lastMsgTime || chat.updated_at || 0 };
+            })
+          );
+          
+          const sortedChats = chatsWithTime.sort((a, b) => b.lastMsgTime - a.lastMsgTime);
+          setChats(sortedChats);
         }
       } catch (error) {
         console.error('Error loading chats:', error);
@@ -78,6 +84,16 @@ export default function ChatList() {
     };
     loadChats();
   }, [user, apiUrl]);
+
+  useEffect(() => {
+    if (chats.length === 0) return;
+    
+    chats.forEach(chat => {
+      if (!lastMessages.has(chat.id)) {
+        loadLastMessage(chat.id);
+      }
+    });
+  }, [chats]);
 
   useEffect(() => {
     if (!isModalOpen) return;
