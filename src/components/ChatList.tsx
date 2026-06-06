@@ -38,18 +38,18 @@ export default function ChatList() {
 
   const loadLastMessage = async (chatId: string) => {
     try {
-      const response = await fetchWithAuth(`${apiUrl}/chats/${chatId}/messages?limit=1&order=desc`);
+      const response = await fetchWithAuth(`/chats/${chatId}/last-message`);
       const data = await response.json();
-      if (Array.isArray(data) && data.length > 0) {
-        const msg = data[0];
+      
+      if (data && data.id) {
         setLastMessages(prev => new Map(prev).set(chatId, {
-          id: msg.id,
-          content: msg.content,
-          created_at: msg.created_at,
-          sender_id: msg.sender_id,
-          sender_name: msg.sender_name
+          id: data.id,
+          content: data.content,
+          created_at: data.created_at,
+          sender_id: data.sender_id,
+          sender_name: data.sender_name || ''
         }));
-        return msg.created_at;
+        return data.created_at;
       }
     } catch (error) {
       console.error('Error loading last message:', error);
@@ -61,19 +61,15 @@ export default function ChatList() {
     if (!user) return;
 
     const loadChats = async () => {
+      setLoading(true);
       try {
-        const response = await fetchWithAuth(`${apiUrl}/chats/`);
+        const response = await fetchWithAuth(`/chats/`);
         const data = await response.json();
+        
         if (Array.isArray(data)) {
-          const chatsWithTime = await Promise.all(
-            data.map(async (chat: Chat) => {
-              const lastMsgTime = await loadLastMessage(chat.id);
-              return { ...chat, lastMsgTime: lastMsgTime || chat.updated_at || 0 };
-            })
-          );
-          
-          const sortedChats = chatsWithTime.sort((a, b) => b.lastMsgTime - a.lastMsgTime);
-          setChats(sortedChats);
+          setChats(data);
+          const lastMsgPromises = data.map(chat => loadLastMessage(chat.id));
+          await Promise.all(lastMsgPromises);
         }
       } catch (error) {
         console.error('Error loading chats:', error);
@@ -82,25 +78,32 @@ export default function ChatList() {
         setLoading(false);
       }
     };
+    
     loadChats();
   }, [user, apiUrl]);
 
   useEffect(() => {
-    if (chats.length === 0) return;
+    if (chats.length === 0 || lastMessages.size === 0) return;
     
-    chats.forEach(chat => {
-      if (!lastMessages.has(chat.id)) {
-        loadLastMessage(chat.id);
-      }
+    const sorted = [...chats].sort((a, b) => {
+      const msgA = lastMessages.get(a.id);
+      const msgB = lastMessages.get(b.id);
+      const timeA = msgA?.created_at || 0;
+      const timeB = msgB?.created_at || 0;
+      return timeB - timeA;
     });
-  }, [chats]);
+    
+    if (JSON.stringify(sorted) !== JSON.stringify(chats)) {
+      setChats(sorted);
+    }
+  }, [lastMessages]);
 
   useEffect(() => {
     if (!isModalOpen) return;
 
     const loadUsers = async () => {
       try {
-        const response = await fetchWithAuth(`${apiUrl}/auth/get_users`);
+        const response = await fetchWithAuth(`/auth/get_users`);
         const data = await response.json();
         if (Array.isArray(data)) {
           const otherUsers = data.filter((u: User) => u.id !== user?.id);
@@ -138,7 +141,7 @@ export default function ChatList() {
     }
     
     try {
-      const response = await fetchWithAuth(`${apiUrl}/chats/`, {
+      const response = await fetchWithAuth(`/chats/`, {
         method: 'POST',
         body: JSON.stringify({
           name: null,
@@ -168,7 +171,7 @@ export default function ChatList() {
     if (!deleteChatId) return;
     
     try {
-      const response = await fetchWithAuth(`${apiUrl}/chats/${deleteChatId}`, {
+      const response = await fetchWithAuth(`/chats/${deleteChatId}`, {
         method: 'DELETE'
       });
       
