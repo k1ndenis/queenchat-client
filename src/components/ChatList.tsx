@@ -278,29 +278,32 @@ export default function ChatList() {
         method: 'DELETE'
       });
       
-      if (!response.ok) {
-        throw new Error('Failed to delete chat');
+      if (response.ok) {
+        setChats(prev => prev.filter(chat => chat.id !== deleteChatId));
+        setLastMessages(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(deleteChatId);
+          return newMap;
+        });
+        setUnreadCounts(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(deleteChatId);
+          return newMap;
+        });
+        
+        setDeleteChatId(null);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Не удалось удалить чат');
       }
-      
-      setChats(prev => prev.filter(chat => chat.id !== deleteChatId));
-      setLastMessages(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(deleteChatId);
-        return newMap;
-      });
-      setUnreadCounts(prev => {
-        const newMap = new Map(prev);
-        newMap.delete(deleteChatId);
-        return newMap;
-      });
-      setDeleteChatId(null);
     } catch (error) {
-      console.error('Error deleting chat:', error);
+      console.error('Ошибка при удалении чата:', error);
       setModal({
         isOpen: true,
         title: t.error || 'Ошибка',
-        message: t.failedToDeleteChat || 'Не удалось удалить чат',
+        message: error instanceof Error ? error.message : (t.failedToDeleteChat || 'Не удалось удалить чат'),
       });
+      setDeleteChatId(null);
     }
   };
 

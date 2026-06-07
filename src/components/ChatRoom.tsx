@@ -436,9 +436,11 @@ export default function ChatRoom() {
                           }`}
                         >
                           {msg.is_sticker ? (
-                            <span className="text-6xl block leading-none">{msg.content}</span>
+                            <span className="text-6xl block leading-none break-keep">{msg.content}</span>
                           ) : (
-                            <p>{msg.content}</p>
+                            <p className="break-words whitespace-pre-wrap overflow-wrap-anywhere">
+                              {msg.content}
+                            </p>
                           )}
                           <div className="flex items-center justify-end gap-1 mt-1">
                             <p className="text-xs opacity-70">{formattedDate}</p>
