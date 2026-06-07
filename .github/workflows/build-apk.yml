@@ -1,0 +1,43 @@
+name: Build APK
+on: 
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          
+      - name: Build Web App
+        run: |
+          cd client
+          npm install
+          npm run build
+          npm install -g @capacitor/cli @capacitor/android
+          npx cap init QueenChat com.queenchat.app --web-dir=dist
+          npx cap add android
+          npx cap sync
+          
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          
+      - uses: android-actions/setup-android@v3
+      
+      - name: Build APK
+        run: |
+          cd client/android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+          
+      - uses: actions/upload-artifact@v4
+        with:
+          name: QueenChat-APK
+          path: client/android/app/build/outputs/apk/debug/*.apk
