@@ -19,6 +19,9 @@ export default function Profile() {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false,
     title: '',
@@ -64,7 +67,6 @@ export default function Profile() {
       }
     }
 
-    // Проверка домена верхнего уровня (минимум 2 символа)
     const domain = email.split('@')[1];
     if (domain && !domain.includes('.') || (domain && domain.split('.').pop()?.length < 2)) {
       return t.emailInvalidDomain || 'Некорректный домен email адреса';
@@ -73,7 +75,6 @@ export default function Profile() {
     return null;
   };
 
-  // Валидация username
   const validateUsername = (username: string): string | null => {
     if (!username || username.trim() === '') {
       return t.usernameRequired || 'Имя пользователя обязательно';
@@ -128,14 +129,12 @@ export default function Profile() {
       return;
     }
 
-    // Валидация email
     const emailError = validateEmail(email);
     if (emailError) {
       setError(emailError);
       return;
     }
 
-    // Проверка на изменения
     if (username === profile?.username && email === profile?.email) {
       setError(t.noChanges || 'Нет изменений для сохранения');
       return;
@@ -151,7 +150,6 @@ export default function Profile() {
         const errorData = await response.json();
         let errorMessage = errorData.detail || t.usernameTaken || 'Ошибка обновления профиля';
         
-        // Специфичные сообщения об ошибках от сервера
         if (errorMessage.toLowerCase().includes('email already exists')) {
           errorMessage = t.emailAlreadyExists || 'Этот email уже используется';
         } else if (errorMessage.toLowerCase().includes('invalid email')) {
@@ -173,6 +171,48 @@ export default function Profile() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    if (confirmText !== 'DELETE') {
+      setError(t.deleteConfirmWrong || 'Введите DELETE для подтверждения');
+      return;
+    }
+
+    setIsDeleting(true);
+    setError('');
+
+    try {
+      const response = await fetchWithAuth(`${apiUrl}/auth/me`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || t.deleteFailed || 'Не удалось удалить аккаунт');
+      }
+
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      dispatch(logout());
+      
+      setModal({
+        isOpen: true,
+        title: t.accountDeleted || 'Аккаунт удалён',
+        message: t.accountDeletedMessage || 'Ваш аккаунт успешно удалён. До свидания!',
+      });
+      
+      setTimeout(() => {
+        navigate('/login');
+      }, 2000);
+      
+    } catch (error) {
+      setError(error instanceof Error ? error.message : t.deleteFailed || 'Не удалось удалить аккаунт');
+      setShowDeleteConfirm(false);
+      setConfirmText('');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -191,9 +231,6 @@ export default function Profile() {
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newEmail = e.target.value;
     setEmail(newEmail);
-    
-    if (newEmail && !validateEmail(newEmail)) {
-    }
   };
 
   if (loading) {
@@ -331,11 +368,77 @@ export default function Profile() {
                 >
                   {t.editProfile}
                 </button>
+                
+                <div className="mt-8 pt-4 border-t border-red-500/30">
+                  <button
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="w-full px-4 py-2 bg-red-500/20 text-red-300 rounded-xl hover:bg-red-500/30 hover:text-red-200 transition cursor-pointer"
+                  >
+                    {t.deleteAccount || 'Удалить аккаунт'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gradient-to-br from-slate-800 to-red-900 rounded-2xl p-6 w-full max-w-md mx-4">
+            <div className="text-center mb-4">
+              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <span className="text-3xl">⚠️</span>
+              </div>
+              <h2 className="text-2xl font-bold text-white">{t.deleteAccount || 'Удалить аккаунт'}</h2>
+              <p className="text-purple-200 mt-2">
+                {t.deleteAccountWarning || 'Это действие необратимо. Все ваши чаты, сообщения и данные будут удалены навсегда.'}
+              </p>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-purple-200 text-sm mb-2">
+                {t.deleteConfirmInstruction || 'Введите DELETE для подтверждения'}
+              </label>
+              <input
+                type="text"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+                placeholder="DELETE"
+                className="w-full px-4 py-2 bg-white/10 border border-red-500/30 rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-red-500 transition text-center font-mono"
+              />
+            </div>
+            
+            {error && (
+              <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg mb-4">
+                <p className="text-red-400 text-sm">{error}</p>
+              </div>
+            )}
+            
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeleteAccount}
+                disabled={isDeleting}
+                className={`flex-1 px-4 py-2 bg-red-500 text-white rounded-xl hover:bg-red-600 transition cursor-pointer ${
+                  isDeleting ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                {isDeleting ? (t.deleting || 'Удаление...') : (t.delete || 'Удалить')}
+              </button>
+              <button
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setConfirmText('');
+                  setError('');
+                }}
+                className="flex-1 px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition cursor-pointer"
+              >
+                {t.cancel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modal.isOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
