@@ -31,6 +31,70 @@ export default function Profile() {
     setModal({ isOpen: false, title: '', message: '' });
   };
 
+  const validateEmail = (email: string): string | null => {
+    if (!email || email.trim() === '') {
+      return t.emailRequired || 'Email обязателен для заполнения';
+    }
+
+    const emailRegex = /^[^\s@]+@([^\s@]+\.)+[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return t.emailInvalid || 'Введите корректный email адрес';
+    }
+
+    if (email.length > 254) {
+      return t.emailTooLong || 'Email не может быть длиннее 254 символов';
+    }
+
+    const localPart = email.split('@')[0];
+    if (localPart.length > 64) {
+      return t.emailLocalTooLong || 'Локальная часть email не может быть длиннее 64 символов';
+    }
+
+    const invalidPatterns = [
+      /\.\./,
+      /^\./,
+      /\.$/,
+      /^@/,
+      /@.*@/,
+    ];
+
+    for (const pattern of invalidPatterns) {
+      if (pattern.test(email)) {
+        return t.emailInvalidFormat || 'Некорректный формат email адреса';
+      }
+    }
+
+    // Проверка домена верхнего уровня (минимум 2 символа)
+    const domain = email.split('@')[1];
+    if (domain && !domain.includes('.') || (domain && domain.split('.').pop()?.length < 2)) {
+      return t.emailInvalidDomain || 'Некорректный домен email адреса';
+    }
+
+    return null;
+  };
+
+  // Валидация username
+  const validateUsername = (username: string): string | null => {
+    if (!username || username.trim() === '') {
+      return t.usernameRequired || 'Имя пользователя обязательно';
+    }
+
+    if (username.length < 3) {
+      return t.usernameTooShort || 'Имя пользователя должно содержать минимум 3 символа';
+    }
+
+    if (username.length > 50) {
+      return t.usernameTooLong || 'Имя пользователя не может быть длиннее 50 символов';
+    }
+
+    const usernameRegex = /^[a-zA-Z0-9_-]+$/;
+    if (!usernameRegex.test(username)) {
+      return t.usernameInvalid || 'Имя пользователя может содержать только буквы, цифры, дефис и нижнее подчеркивание';
+    }
+
+    return null;
+  };
+
   useEffect(() => {
     if (!user) {
       navigate('/login');
@@ -58,6 +122,25 @@ export default function Profile() {
     setError('');
     setSuccess('');
 
+    const usernameError = validateUsername(username);
+    if (usernameError) {
+      setError(usernameError);
+      return;
+    }
+
+    // Валидация email
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setError(emailError);
+      return;
+    }
+
+    // Проверка на изменения
+    if (username === profile?.username && email === profile?.email) {
+      setError(t.noChanges || 'Нет изменений для сохранения');
+      return;
+    }
+
     try {
       const response = await fetchWithAuth(`${apiUrl}/auth/profile`, {
         method: 'PATCH',
@@ -66,7 +149,18 @@ export default function Profile() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || t.usernameTaken || 'Ошибка обновления профиля');
+        let errorMessage = errorData.detail || t.usernameTaken || 'Ошибка обновления профиля';
+        
+        // Специфичные сообщения об ошибках от сервера
+        if (errorMessage.toLowerCase().includes('email already exists')) {
+          errorMessage = t.emailAlreadyExists || 'Этот email уже используется';
+        } else if (errorMessage.toLowerCase().includes('invalid email')) {
+          errorMessage = t.emailInvalid || 'Некорректный email адрес';
+        } else if (errorMessage.toLowerCase().includes('username already taken')) {
+          errorMessage = t.usernameTaken || 'Это имя пользователя уже занято';
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -92,6 +186,14 @@ export default function Profile() {
       month: 'long',
       day: 'numeric',
     });
+  };
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newEmail = e.target.value;
+    setEmail(newEmail);
+    
+    if (newEmail && !validateEmail(newEmail)) {
+    }
   };
 
   if (loading) {
@@ -146,22 +248,48 @@ export default function Profile() {
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 transition"
+                    className={`w-full px-4 py-2 bg-white/10 border rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 transition ${
+                      error && error.includes('имя пользователя') 
+                        ? 'border-red-500' 
+                        : 'border-white/20'
+                    }`}
                     required
+                    minLength={3}
+                    maxLength={50}
+                    pattern="[a-zA-Z0-9_-]+"
                   />
+                  <p className="text-purple-300/70 text-xs mt-1">
+                    {t.usernameHint || 'Только буквы, цифры, дефис и нижнее подчеркивание (3-50 символов)'}
+                  </p>
                 </div>
                 <div>
                   <label className="block text-purple-200 text-sm mb-2">{t.email}</label>
                   <input
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 transition"
+                    onChange={handleEmailChange}
+                    className={`w-full px-4 py-2 bg-white/10 border rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 transition ${
+                      error && error.includes('email') 
+                        ? 'border-red-500' 
+                        : 'border-white/20'
+                    }`}
                     required
+                    maxLength={254}
                   />
+                  <p className="text-purple-300/70 text-xs mt-1">
+                    {t.emailHint || 'Введите корректный email адрес (например, user@example.com)'}
+                  </p>
                 </div>
-                {error && <p className="text-red-400 text-sm">{error}</p>}
-                {success && <p className="text-green-400 text-sm">{success}</p>}
+                {error && (
+                  <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg">
+                    <p className="text-red-400 text-sm">{error}</p>
+                  </div>
+                )}
+                {success && (
+                  <div className="p-3 bg-green-500/20 border border-green-500/50 rounded-lg">
+                    <p className="text-green-400 text-sm">{success}</p>
+                  </div>
+                )}
                 <div className="flex gap-3">
                   <button
                     type="submit"
