@@ -8,14 +8,21 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}) {
 
   const fullUrl = url.startsWith('http') ? url : `${apiUrl}${url}`;
 
+  const isFormData = options.body instanceof FormData;
+  
+  const headers: HeadersInit = {
+    ...(token && { 'Authorization': `Bearer ${token}` }),
+    ...options.headers,
+  };
+  
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const response = await fetch(fullUrl, {
     ...options,
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token && { 'Authorization': `Bearer ${token}` }),
-      ...options.headers,
-    },
+    headers,
   });
 
   return response;

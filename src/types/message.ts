@@ -6,6 +6,7 @@ export interface Message {
   created_at: number;
   is_read: boolean;
   is_sticker?: boolean;
+  is_image?: boolean;
   sticker_id?: string | null;
 }
 

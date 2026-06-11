@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppSelector, useAppDispatch } from '../../lib/redux/hooks';
-import { logout } from '../../lib/redux/slices/userSlice';
-import { fetchWithAuth } from '../../lib/api';
+import { useAppSelector, useAppDispatch } from '../lib/redux/hooks';
+import { logout } from '../lib/redux/slices/userSlice';
+import { fetchWithAuth } from '../lib/api';
 import LoadingScreen from './LoadingScreen';
 import Notifications from './Notifications';
-import { translations } from '../../lib/locales';
+import { translations } from '../lib/locales';
 import type { UserProfile } from '../types/user';
 
 export default function Profile() {

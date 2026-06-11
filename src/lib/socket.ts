@@ -7,6 +7,80 @@ class WebSocketManager {
   private reconnectDelay = 5000;
   private isConnecting = false;
   private pingInterval: number | null = null;
+  private isGlobal = false;
+
+  async connect() {
+    if (this.isConnecting) return;
+    if (this.ws?.readyState === WebSocket.OPEN) return;
+
+    this.isConnecting = true;
+
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL;
+      const response = await fetch(`${apiUrl}/auth/ws-token`, {
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        console.error('❌ Failed to get WebSocket token');
+        this.isConnecting = false;
+        this.attemptReconnect();
+        return;
+      }
+
+      const { token } = await response.json();
+      const wsURL = import.meta.env.VITE_WS_URL || 'wss://queenchat.ru';
+      const url = `${wsURL}/api/chats/ws/global?token=${token}`;
+
+      console.log('🔌 Connecting to global WebSocket');
+      this.ws = new WebSocket(url);
+      this.isGlobal = true;
+
+      this.ws.onopen = () => {
+        console.log('✅ Global WebSocket connected');
+        this.reconnectAttempts = 0;
+        this.isConnecting = false;
+
+        this.pingInterval = window.setInterval(() => {
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ type: 'ping' }));
+          }
+        }, 30000);
+      };
+
+      this.ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'pong') return;
+          
+          const callbacks = this.listeners.get(data.type);
+          if (callbacks) {
+            callbacks.forEach(cb => cb(data));
+          }
+        } catch (error) {
+          console.error('❌ Error parsing WebSocket message:', error);
+        }
+      };
+
+      this.ws.onclose = () => {
+        console.log('🔌 Global WebSocket disconnected');
+        if (this.pingInterval) {
+          clearInterval(this.pingInterval);
+          this.pingInterval = null;
+        }
+        this.isConnecting = false;
+        this.attemptReconnect();
+      };
+
+      this.ws.onerror = (error) => {
+        console.error('❌ WebSocket error:', error);
+      };
+    } catch (error) {
+      console.error('❌ Error connecting to WebSocket:', error);
+      this.isConnecting = false;
+      this.attemptReconnect();
+    }
+  }
 
   async connectToChat(chatId: string) {
     if (!chatId || chatId === 'undefined') {
@@ -49,11 +123,12 @@ class WebSocketManager {
       const wsURL = import.meta.env.VITE_WS_URL || 'ws://localhost:3100';
       const url = `${wsURL}/api/chats/ws/${chatId}?token=${token}`;
 
-      console.log(`🔌 Connecting to WebSocket: ${url}`);
+      console.log(`🔌 Connecting to chat WebSocket: ${url}`);
       this.ws = new WebSocket(url);
+      this.isGlobal = false;
 
       this.ws.onopen = () => {
-        console.log('✅ WebSocket connected');
+        console.log('✅ Chat WebSocket connected');
         this.reconnectAttempts = 0;
         this.isConnecting = false;
 
@@ -70,7 +145,6 @@ class WebSocketManager {
           
           if (data.type === 'pong') return;
           
-          // ✅ Обработка уведомлений
           if (data.type === 'notification') {
             const callbacks = this.listeners.get('notification');
             if (callbacks) {
@@ -102,7 +176,7 @@ class WebSocketManager {
       };
 
       this.ws.onclose = () => {
-        console.log('🔌 WebSocket disconnected');
+        console.log('🔌 Chat WebSocket disconnected');
         if (this.pingInterval) {
           clearInterval(this.pingInterval);
           this.pingInterval = null;
@@ -134,6 +208,8 @@ class WebSocketManager {
     setTimeout(() => {
       if (this.currentChatId && !this.isConnecting && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
         this.connectToChat(this.currentChatId);
+      } else if (!this.currentChatId && !this.isConnecting) {
+        this.connect();
       }
     }, delay);
   }
@@ -177,6 +253,7 @@ class WebSocketManager {
       this.ws = null;
     }
     this.currentChatId = null;
+    this.isGlobal = false;
   }
 
   isConnected(): boolean {

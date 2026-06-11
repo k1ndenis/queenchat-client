@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppDispatch, useAppSelector } from '../../lib/redux/hooks';
-import { logout } from '../../lib/redux/slices/userSlice';
-import { translations } from '../../lib/locales';
+import { useAppDispatch, useAppSelector } from '../lib/redux/hooks';
+import { logout } from '../lib/redux/slices/userSlice';
+import { translations } from '../lib/locales';
 
 interface UserMenuProps {
   username: string;

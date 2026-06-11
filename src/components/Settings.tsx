@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppSelector, useAppDispatch } from '../../lib/redux/hooks';
-import { logout, setLanguage } from '../../lib/redux/slices/userSlice';
+import { useAppSelector, useAppDispatch } from '../lib/redux/hooks';
+import { logout, setLanguage } from '../lib/redux/slices/userSlice';
 import LoadingScreen from './LoadingScreen';
 import Notifications from './Notifications';
-import { translations } from './../../lib/locales';
+import { translations } from '../lib/locales';
 
 export default function Settings() {
   const navigate = useNavigate();

@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { stickers } from '../data/stickers';
 import { stickerCategories } from '../data/stickerCategories';
 import { getStickerName } from '../data/stickerNames';
-import { useAppSelector } from '../../lib/redux/hooks';
-import { translations } from '../../lib/locales';
+import { useAppSelector } from '../lib/redux/hooks';
+import { translations } from '../lib/locales';
 
 interface StickerPickerProps {
   onSelectSticker: (stickerId: string, emoji: string) => void;

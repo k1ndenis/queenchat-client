@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchWithAuth } from '../../lib/api';
-import { socket } from '../../lib/socket';
-import { useAppSelector } from '../../lib/redux/hooks';
-import { translations } from '../../lib/locales';
+import { fetchWithAuth } from '../lib/api';
+import { socket } from '../lib/socket';
+import { useAppSelector } from '../lib/redux/hooks';
+import { translations } from '../lib/locales';
 import type { Chat } from '../types/chat';
 import type { User } from '../types/user';
 import type { LastMessage } from '../types/message';
@@ -62,9 +62,13 @@ export default function ChatList() {
       const data = await response.json();
       
       if (data && data.id) {
+        let displayContent = data.content;
+        if (data.is_image) {
+          displayContent = "🖼️ Изображение";
+        }
         setLastMessages(prev => new Map(prev).set(chatId, {
           id: data.id,
-          content: data.content,
+          content: displayContent,
           created_at: data.created_at,
           sender_id: data.sender_id,
           sender_name: data.sender_name || ''

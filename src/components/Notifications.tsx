@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppSelector } from '../../lib/redux/hooks';
-import { fetchWithAuth } from '../../lib/api';
-import { socket } from '../../lib/socket';
-import { translations } from '../../lib/locales';
+import { useAppSelector } from '../lib/redux/hooks';
+import { fetchWithAuth } from '../lib/api';
+import { socket } from '../lib/socket';
+import { translations } from '../lib/locales';
 import type { Notification } from '../types/notification';
 import { createPortal } from 'react-dom';
 

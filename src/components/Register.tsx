@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAppDispatch, useAppSelector } from '../../lib/redux/hooks';
-import { setUser } from '../../lib/redux/slices/userSlice';
-import { fetchWithAuth } from '../../lib/api';
+import { useAppDispatch, useAppSelector } from '../lib/redux/hooks';
+import { setUser } from '../lib/redux/slices/userSlice';
+import { fetchWithAuth } from '../lib/api';
 import Logo from './Logo';
-import { translations } from '../../lib/locales';
+import { translations } from '../lib/locales';
 
 export default function Register() {
   const dispatch = useAppDispatch();

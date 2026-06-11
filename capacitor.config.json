@@ -1,0 +1,13 @@
+{
+  "appId": "com.queenchat.app",
+  "appName": "QueenChat",
+  "webDir": "dist",
+  "server": {
+    "url": "https://queenchat.ru",
+    "cleartext": true,
+    "androidScheme": "https"
+  },
+  "android": {
+    "icon": "public/app-icon.webp"
+  }
+}

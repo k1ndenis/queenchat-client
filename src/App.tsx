@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { useAppDispatch, useAppSelector } from './../lib/redux/hooks';
-import { fetchMe } from './../lib/redux/slices/userSlice';
+import { useAppDispatch, useAppSelector } from './lib/redux/hooks';
+import { fetchMe } from './lib/redux/slices/userSlice';
 import { useEffect, useRef } from 'react';
 import Login from './components/Login';
 import Register from './components/Register';

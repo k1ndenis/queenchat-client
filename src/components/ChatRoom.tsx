@@ -1,16 +1,17 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useAppSelector } from '../../lib/redux/hooks';
-import { fetchWithAuth } from '../../lib/api';
-import { socket } from '../../lib/socket';
+import { useAppSelector } from '../lib/redux/hooks';
+import { fetchWithAuth } from '../lib/api';
+import { socket } from '../lib/socket';
 import StickerPicker from './StickerPicker';
 import LoadingScreen from './LoadingScreen';
 import Notifications from './Notifications';
-import { translations } from '../../lib/locales';
+import { translations } from '../lib/locales';
 import type { Message } from '../types/message';
 import type { ChatInfo } from '../types/chat';
 import Logo from './Logo';
 import UserMenu from './UserMenu';
+import ImageUploader from './ImageUploader';
 
 export default function ChatRoom() {
   const { id } = useParams<{ id: string }>();
@@ -22,6 +23,7 @@ export default function ChatRoom() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false,
     title: '',
@@ -55,6 +57,31 @@ export default function ChatRoom() {
       navigate('/chat');
     }
   }, [id, navigate]);
+
+  const handleImageSent = (data: any) => {
+    const newMessage: Message = {
+      id: data.id,
+      content: data.content,
+      sender_id: user!.id,
+      chat_id: id!,
+      created_at: Math.floor(Date.now() / 1000),
+      is_read: false,
+      is_image: true,
+    };
+
+    setMessages(prev => {
+      const newMessages = [...prev, newMessage];
+      newMessages.sort((a, b) => a.created_at - b.created_at);
+      return newMessages;
+    });
+
+    socket.emit('send-message', { ...data, chat_id: id });
+    setTimeout(scrollToBottom, 100);
+  };
+
+  const handleImageError = (error: string) => {
+    setModal({ isOpen: true, title: t.error, message: error });
+  };
 
   const ensureParticipant = useCallback(async (chatId: string, userId: string) => {
     try {
@@ -435,7 +462,18 @@ export default function ChatRoom() {
                               : 'bg-white/10 text-white'
                           }`}
                         >
-                          {msg.is_sticker ? (
+                          {msg.is_image ? (
+                            <>
+                              <div className="max-w-[250px] md:max-w-[300px]">
+                                <img 
+                                  src={msg.content} 
+                                  alt="image" 
+                                  className="w-full h-auto max-h-[250px] md:max-h-[300px] rounded-lg cursor-pointer object-contain hover:opacity-90 transition"
+                                  onClick={() => setPreviewImage(msg.content)}
+                                />
+                              </div>
+                            </>
+                          ) : msg.is_sticker ? (
                             <span className="text-6xl block leading-none break-keep">{msg.content}</span>
                           ) : (
                             <p className="break-words whitespace-pre-wrap overflow-wrap-anywhere">
@@ -489,6 +527,12 @@ export default function ChatRoom() {
                   <line x1="15" y1="9" x2="15.01" y2="9"/>
                 </svg>
               </button>
+
+              <ImageUploader
+                chatId={id!}
+                onImageSent={handleImageSent}
+                onError={handleImageError}
+              />
               
               <input
                 type="text"
@@ -519,6 +563,28 @@ export default function ChatRoom() {
           onSelectSticker={handleSendSticker}
           onClose={() => setShowStickerPicker(false)}
         />
+      )}
+
+      {/* Модальное окно для просмотра изображения */}
+      {previewImage && (
+        <div 
+          className="fixed inset-0 z-[100001] bg-black/90 flex items-center justify-center"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <img 
+              src={previewImage} 
+              alt="Preview" 
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            />
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-10 right-0 text-white text-4xl hover:text-gray-300 transition"
+            >
+              ×
+            </button>
+          </div>
+        </div>
       )}
 
       {modal.isOpen && (
