@@ -55,6 +55,30 @@ export default function ChatRoom() {
     }
   };
 
+  const parseImages = (msg: Message): string[] => {
+    if (msg.images && Array.isArray(msg.images)) {
+      return msg.images;
+    }
+    if (msg.images && typeof msg.images === 'string') {
+      try {
+        const parsed = JSON.parse(msg.images);
+        if (Array.isArray(parsed)) return parsed;
+      } catch(e) {}
+    }
+    if (msg.content && msg.content.startsWith('["/uploads/')) {
+      try {
+        const parsed = JSON.parse(msg.content);
+        if (Array.isArray(parsed) && parsed.length > 0 && parsed[0].startsWith('/uploads/')) {
+          return parsed;
+        }
+      } catch(e) {}
+    }
+    if (msg.is_image && msg.content && msg.content.startsWith('/uploads/')) {
+      return [msg.content];
+    }
+    return [];
+  };
+
   useEffect(() => {
     isMounted.current = true;
     return () => {
@@ -75,25 +99,59 @@ export default function ChatRoom() {
     }
   }, [id, navigate]);
 
-  const handleImageSent = (data: any) => {
-    const newMsg: Message = {
-      id: data.id,
-      content: data.content,
+  const handleImagesUploaded = async (urls: string[]) => {
+    const tempId = `temp-${Date.now()}`;
+    
+    const tempMessage: Message = {
+      id: tempId,
+      content: JSON.stringify(urls),
       sender_id: user!.id,
       chat_id: id!,
       created_at: Math.floor(Date.now() / 1000),
       is_read: false,
       is_image: true,
+      images: urls,
     };
 
     setMessages(prev => {
-      const newMessages = [...prev, newMsg];
-      newMessages.sort((a, b) => a.created_at - b.created_at);
-      return newMessages;
+      const allMessages = [...prev, tempMessage];
+      allMessages.sort((a, b) => a.created_at - b.created_at);
+      return allMessages;
     });
 
-    socket.emit('send-message', { ...data, chat_id: id });
-    setTimeout(scrollToBottom, 100);
+    try {
+      const payload: any = {
+        content: JSON.stringify(urls),
+        is_image: true,
+        images: urls
+      };
+      
+      const response = await fetchWithAuth(`${apiUrl}/chats/${id}/messages`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) throw new Error('Failed to send images');
+
+      const data = await response.json();
+      
+      setMessages(prev => 
+        prev.map(msg => msg.id === tempId ? { ...data, images: urls } : msg)
+          .sort((a, b) => a.created_at - b.created_at)
+      );
+
+      socket.emit('send-message', { ...data, chat_id: id, images: urls });
+      
+      setTimeout(scrollToBottom, 100);
+      
+    } catch (error) {
+      setMessages(prev => prev.filter(msg => msg.id !== tempId));
+      setModal({
+        isOpen: true,
+        title: t.error,
+        message: 'Не удалось отправить изображения',
+      });
+    }
   };
 
   const handleImageError = (error: string) => {
@@ -142,6 +200,17 @@ export default function ChatRoom() {
       if (messagesResponse.ok) {
         let messagesData = await messagesResponse.json();
         if (Array.isArray(messagesData)) {
+          // Преобразуем images из JSON строки в массив
+          messagesData = messagesData.map((msg: Message) => {
+            if (msg.images && typeof msg.images === 'string') {
+              try {
+                msg.images = JSON.parse(msg.images);
+              } catch(e) {
+                msg.images = null;
+              }
+            }
+            return msg;
+          });
           messagesData.forEach((msg: Message) => {
             messageIds.current.add(msg.id);
           });
@@ -473,6 +542,7 @@ export default function ChatRoom() {
 
                     const isOwn = msg.sender_id === user?.id;
                     const replyToMsg = msg.reply_to_id ? messages.find(m => m.id === msg.reply_to_id) : null;
+                    const imageUrls = parseImages(msg);
 
                     return (
                       <div
@@ -500,14 +570,17 @@ export default function ChatRoom() {
                             </div>
                           )}
                           
-                          {msg.is_image ? (
-                            <div className="max-w-[250px] md:max-w-[300px]">
-                              <img 
-                                src={msg.content} 
-                                alt="image" 
-                                className="w-full h-auto max-h-[250px] md:max-h-[300px] rounded-lg cursor-pointer object-contain hover:opacity-90 transition"
-                                onClick={() => setPreviewImage(msg.content)}
-                              />
+                          {imageUrls.length > 0 ? (
+                            <div className={`grid ${imageUrls.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-1 max-w-[300px]`}>
+                              {imageUrls.map((url, idx) => (
+                                <img 
+                                  key={idx}
+                                  src={url} 
+                                  alt={`image ${idx + 1}`} 
+                                  className="w-full h-32 object-cover rounded-lg cursor-pointer hover:opacity-90 transition"
+                                  onClick={() => setPreviewImage(url)}
+                                />
+                              ))}
                             </div>
                           ) : msg.is_sticker ? (
                             <span className="text-6xl block leading-none break-keep">{msg.content}</span>
@@ -608,7 +681,7 @@ export default function ChatRoom() {
 
               <ImageUploader
                 chatId={id!}
-                onImageSent={handleImageSent}
+                onImagesUploaded={handleImagesUploaded}
                 onError={handleImageError}
               />
               
