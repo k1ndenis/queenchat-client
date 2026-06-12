@@ -12,6 +12,7 @@ import type { ChatInfo } from '../types/chat';
 import Logo from './Logo';
 import UserMenu from './UserMenu';
 import ImageUploader from './ImageUploader';
+import ImageViewer from './ImageViewer';
 
 export default function ChatRoom() {
   const { id } = useParams<{ id: string }>();
@@ -23,7 +24,8 @@ export default function ChatRoom() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [viewerImages, setViewerImages] = useState<string[] | null>(null);
+  const [viewerIndex, setViewerIndex] = useState<number>(0);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false,
@@ -77,6 +79,11 @@ export default function ChatRoom() {
       return [msg.content];
     }
     return [];
+  };
+
+  const openImageViewer = (images: string[], index: number) => {
+    setViewerImages(images);
+    setViewerIndex(index);
   };
 
   useEffect(() => {
@@ -200,7 +207,6 @@ export default function ChatRoom() {
       if (messagesResponse.ok) {
         let messagesData = await messagesResponse.json();
         if (Array.isArray(messagesData)) {
-          // Преобразуем images из JSON строки в массив
           messagesData = messagesData.map((msg: Message) => {
             if (msg.images && typeof msg.images === 'string') {
               try {
@@ -578,7 +584,7 @@ export default function ChatRoom() {
                                   src={url} 
                                   alt={`image ${idx + 1}`} 
                                   className="w-full h-32 object-cover rounded-lg cursor-pointer hover:opacity-90 transition"
-                                  onClick={() => setPreviewImage(url)}
+                                  onClick={() => openImageViewer(imageUrls, idx)}
                                 />
                               ))}
                             </div>
@@ -717,25 +723,12 @@ export default function ChatRoom() {
         />
       )}
 
-      {previewImage && (
-        <div 
-          className="fixed inset-0 z-[100001] bg-black/90 flex items-center justify-center"
-          onClick={() => setPreviewImage(null)}
-        >
-          <div className="relative max-w-[90vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-            <img 
-              src={previewImage} 
-              alt="Preview" 
-              className="max-w-full max-h-[90vh] object-contain rounded-lg"
-            />
-            <button
-              onClick={() => setPreviewImage(null)}
-              className="absolute -top-10 right-0 text-white text-4xl hover:text-gray-300 transition"
-            >
-              ×
-            </button>
-          </div>
-        </div>
+      {viewerImages && (
+        <ImageViewer
+          images={viewerImages}
+          initialIndex={viewerIndex}
+          onClose={() => setViewerImages(null)}
+        />
       )}
 
       {modal.isOpen && (
