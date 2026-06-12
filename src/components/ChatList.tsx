@@ -37,6 +37,15 @@ export default function ChatList() {
     setModal({ isOpen: false, title: '', message: '' });
   };
 
+  const openUserProfile = (userId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (userId === user?.id) {
+      navigate('/profile');
+    } else {
+      navigate(`/user/${userId}`);
+    }
+  };
+
   const loadUnreadCount = useCallback(async (chatId: string) => {
     try {
       const response = await fetchWithAuth(`/chats/${chatId}/messages/unread/count`);
@@ -166,6 +175,12 @@ export default function ChatList() {
     socket.on('new-message', handleNewMessage);
     socket.on('message_read', handleMessageRead);
     socket.on('messages_read', handleMessagesRead);
+    
+    return () => {
+      socket.off('new-message', handleNewMessage);
+      socket.off('message_read', handleMessageRead);
+      socket.off('messages_read', handleMessagesRead);
+    };
   }, [user, loadUnreadCount, loadLastMessage]);
 
   useEffect(() => {
@@ -390,7 +405,11 @@ export default function ChatList() {
                   >
                     <div className="flex items-center gap-3">
                       <div className="relative">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md flex-shrink-0 overflow-hidden">
+                        <div 
+                          onClick={(e) => otherUser && openUserProfile(otherUser.user_id, e)}
+                          className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md flex-shrink-0 overflow-hidden cursor-pointer hover:opacity-80 transition"
+                          title={t.viewProfile || 'Открыть профиль'}
+                        >
                           {avatarUrl ? (
                             <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
                           ) : (

@@ -9,10 +9,10 @@ import Notifications from './Notifications';
 import { translations } from '../lib/locales';
 import type { Message } from '../types/message';
 import type { ChatInfo } from '../types/chat';
-import Logo from './Logo';
 import UserMenu from './UserMenu';
 import ImageUploader from './ImageUploader';
 import ImageViewer from './ImageViewer';
+import Logo from './Logo';
 
 export default function ChatRoom() {
   const { id } = useParams<{ id: string }>();
@@ -44,6 +44,14 @@ export default function ChatRoom() {
 
   const cancelReply = () => {
     setReplyTo(null);
+  };
+
+  const openUserProfile = (userId: string) => {
+    if (userId === user?.id) {
+      navigate('/profile');
+    } else {
+      navigate(`/user/${userId}`);
+    }
   };
 
   const scrollToMessage = (messageId: string) => {
@@ -493,8 +501,16 @@ export default function ChatRoom() {
     return t.chat || 'Чат';
   };
 
-  const chatName = getChatDisplayName();
+  const getOtherUser = () => {
+    if (!chat?.is_group && chat?.participants) {
+      return chat.participants.find(p => p.user_id !== user?.id);
+    }
+    return null;
+  };
 
+  const chatName = getChatDisplayName();
+  const otherUser = getOtherUser();
+  
   return (
     <>
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col h-screen">
@@ -511,8 +527,32 @@ export default function ChatRoom() {
                   <polyline points="12 19 5 12 12 5"/>
                 </svg>
               </button>
+
               <Logo variant="icon" />
-              <h1 className="text-xl font-semibold text-white">{chatName}</h1>
+              
+              {otherUser ? (
+                <div 
+                  onClick={() => openUserProfile(otherUser.user_id)}
+                  className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                  title={t.viewProfile || 'Открыть профиль'}
+                >
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md overflow-hidden">
+                    {otherUser.avatar ? (
+                      <img src={otherUser.avatar} alt={chatName} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-white font-bold text-base">{chatName?.[0]?.toUpperCase()}</span>
+                    )}
+                  </div>
+                  <h1 className="text-xl font-semibold text-white">{chatName}</h1>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md overflow-hidden">
+                    <span className="text-white font-bold text-base">{chatName?.[0]?.toUpperCase()}</span>
+                  </div>
+                  <h1 className="text-xl font-semibold text-white">{chatName}</h1>
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-4">
               <div className="relative z-50">

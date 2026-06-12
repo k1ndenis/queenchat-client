@@ -54,7 +54,7 @@ export default function ImageViewer({ images, initialIndex, onClose }: ImageView
         <img 
           src={currentImage} 
           alt="Preview" 
-          className="max-w-full max-h-[90vh] object-contain rounded-lg"
+          className="max-w-full max-h-[90vh] object-contain rounded-lg cursor-pointer"
         />
         
         {images.length > 1 && currentIndex < images.length - 1 && (

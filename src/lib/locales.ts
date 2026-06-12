@@ -92,6 +92,13 @@ export const translations = {
     languageDesc: 'Выберите язык интерфейса',
     saveSettings: 'Сохранить настройки',
     settingsSaved: 'Настройки сохранены',
+    // UserProfile
+    userProfile: 'Профиль пользователя',
+    myProfile: 'Мой профиль',
+    viewProfile: 'Открыть профиль',
+    sendMessage: 'Написать сообщение',
+    backToChats: 'Вернуться к чатам',
+    creating: 'Создание...',
     // Common
     save: 'Сохранить',
     cancel: 'Отмена',
@@ -195,6 +202,13 @@ export const translations = {
     languageDesc: 'Choose your preferred language',
     saveSettings: 'Save Settings',
     settingsSaved: 'Settings saved successfully',
+    // UserProfile
+    userProfile: 'User Profile',
+    myProfile: 'My Profile',
+    viewProfile: 'View Profile',
+    sendMessage: 'Send Message',
+    backToChats: 'Back to Chats',
+    creating: 'Creating...',
     // Common
     save: 'Save',
     cancel: 'Cancel',

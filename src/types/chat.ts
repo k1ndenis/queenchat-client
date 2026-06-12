@@ -21,5 +21,9 @@ export interface ChatInfo {
   name?: string;
   is_group: boolean;
   created_by: string;
-  participants?: { user_id: string; username: string }[];
+  participants?: { 
+    user_id: string; 
+    username: string;
+    avatar?: string;
+  }[];
 }
