@@ -35,6 +35,9 @@ export default function Profile() {
   const t = translations[language as keyof typeof translations];
   const isMounted = useRef(true);
 
+  const ADMIN_ID = 'd5540754-2973-4be5-aa6a-249b50fe2748';
+  const isAdmin = user?.id === ADMIN_ID;
+
   useEffect(() => {
     return () => {
       isMounted.current = false;
@@ -399,7 +402,6 @@ export default function Profile() {
                     className="w-full h-full object-cover"
                     key={avatarPreview}
                     onError={(e) => {
-                      // Только один раз пробуем перезагрузить
                       const img = e.target as HTMLImageElement;
                       if (!img.hasAttribute('data-retry')) {
                         img.setAttribute('data-retry', 'true');
@@ -520,7 +522,14 @@ export default function Profile() {
               <div className="space-y-4">
                 <div className="flex justify-between items-center pb-2 border-b border-white/10">
                   <span className="text-purple-200">{t.username}</span>
-                  <span className="text-white font-medium">{profile?.username}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-white font-medium">{profile?.username}</span>
+                    {isAdmin && (
+                      <span className="text-xs bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-2 py-0.5 rounded-full font-medium">
+                        ADMIN
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-white/10">
                   <span className="text-purple-200">{t.email}</span>
@@ -530,9 +539,18 @@ export default function Profile() {
                   <span className="text-purple-200">{t.registrationDate}</span>
                   <span className="text-white font-medium">{formatDate(profile?.created_at || 0)}</span>
                 </div>
+                
+                {/* Кнопка перехода на страницу публичного профиля */}
+                <button
+                  onClick={() => navigate(`/user/${user?.id}`)}
+                  className="w-full mt-6 px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition cursor-pointer"
+                >
+                  Смотреть публичный профиль
+                </button>
+                
                 <button
                   onClick={() => setIsEditing(true)}
-                  className="w-full mt-6 px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition cursor-pointer"
+                  className="w-full px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition cursor-pointer"
                 >
                   {t.editProfile}
                 </button>

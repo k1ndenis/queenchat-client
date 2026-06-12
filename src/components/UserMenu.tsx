@@ -17,6 +17,9 @@ export default function UserMenu({ username, email }: UserMenuProps) {
   const language = useAppSelector(state => state.user.language);
   const { user } = useAppSelector(state => state.user);
   const t = translations[language as keyof typeof translations];
+  
+  const ADMIN_ID = 'd5540754-2973-4be5-aa6a-249b50fe2748';
+  const isAdmin = user?.id === ADMIN_ID;
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -49,7 +52,14 @@ export default function UserMenu({ username, email }: UserMenuProps) {
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-white font-semibold truncate">{username}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-white font-semibold truncate">{username}</p>
+            {isAdmin && (
+              <span className="text-xs bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
+                ADMIN
+              </span>
+            )}
+          </div>
           <p className="text-purple-300 text-xs mt-0.5 truncate">{email}</p>
         </div>
       </div>

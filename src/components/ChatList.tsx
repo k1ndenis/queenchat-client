@@ -33,6 +33,8 @@ export default function ChatList() {
     message: '',
   });
 
+  const ADMIN_ID = 'd5540754-2973-4be5-aa6a-249b50fe2748';
+
   const closeModal = () => {
     setModal({ isOpen: false, title: '', message: '' });
   };
@@ -192,8 +194,15 @@ export default function ChatList() {
         const data = await response.json();
         if (Array.isArray(data)) {
           const otherUsers = data.filter((u: User) => u.id !== user?.id);
-          setUsers(otherUsers);
-          setFilteredUsers(otherUsers);
+          
+          const sortedUsers = [...otherUsers].sort((a, b) => {
+            if (a.id === ADMIN_ID) return -1;
+            if (b.id === ADMIN_ID) return 1;
+            return a.username.localeCompare(b.username);
+          });
+          
+          setUsers(sortedUsers);
+          setFilteredUsers(sortedUsers);
         }
       } catch (error) {
         console.error('Error loading users:', error);
@@ -389,6 +398,7 @@ export default function ChatList() {
                                     chat.name?.[0]?.toUpperCase() || 
                                     'Ч';
                 const displayName = chat.name || otherUser?.username || t.chat || 'Чат';
+                const isAdminUser = otherUser?.user_id === ADMIN_ID;
                 
                 const lastMsg = lastMessages.get(chat.id);
                 const isOwn = lastMsg?.sender_id === user?.id;
@@ -425,9 +435,16 @@ export default function ChatList() {
                       
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-baseline gap-2">
-                          <h3 className={`font-semibold truncate ${unreadCount > 0 ? 'text-white' : 'text-white/80'}`}>
-                            {displayName}
-                          </h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className={`font-semibold truncate ${unreadCount > 0 ? 'text-white' : 'text-white/80'}`}>
+                              {displayName}
+                            </h3>
+                            {isAdminUser && (
+                              <span className="text-xs bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-1.5 py-0.5 rounded-full font-medium">
+                                ADMIN
+                              </span>
+                            )}
+                          </div>
                           {lastMsg && (
                             <span className={`text-xs flex-shrink-0 ${unreadCount > 0 ? 'text-purple-300' : 'text-purple-400/60'}`}>
                               {formatTime(lastMsg.created_at)}
@@ -507,7 +524,14 @@ export default function ChatList() {
                         </div>
                       )}
                     </div>
-                    <p className="text-white font-medium">{u.username}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-white font-medium">{u.username}</p>
+                      {u.id === ADMIN_ID && (
+                        <span className="text-xs bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-1.5 py-0.5 rounded-full font-medium">
+                          ADMIN
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))
               )}

@@ -30,6 +30,9 @@ export default function UserProfile() {
     setModal({ isOpen: false, title: '', message: '' });
   };
 
+  // ID администратора
+  const ADMIN_ID = 'd5540754-2973-4be5-aa6a-249b50fe2748';
+
   useEffect(() => {
     if (!currentUser) {
       navigate('/login');
@@ -146,6 +149,7 @@ export default function UserProfile() {
   }
 
   const isOwnProfile = currentUser?.id === user.id;
+  const isAdmin = user.id === ADMIN_ID;
 
   return (
     <>
@@ -210,10 +214,18 @@ export default function UserProfile() {
               </div>
             </div>
 
+            {/* Информация о пользователе */}
             <div className="space-y-4">
               <div className="flex justify-between items-center pb-3 border-b border-white/10">
                 <span className="text-purple-200">{t.username}</span>
-                <span className="text-white font-medium">{user.username}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-white font-medium">{user.username}</span>
+                  {isAdmin && (
+                    <span className="text-xs bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-2 py-0.5 rounded-full font-medium">
+                      ADMIN
+                    </span>
+                  )}
+                </div>
               </div>
               
               <div className="flex justify-between items-center pb-3 border-b border-white/10">
@@ -227,6 +239,7 @@ export default function UserProfile() {
               </div>
             </div>
 
+            {/* Кнопки действий */}
             <div className="mt-8 space-y-3">
               {!isOwnProfile && (
                 <button
