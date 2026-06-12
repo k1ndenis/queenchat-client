@@ -1,13 +1,12 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../lib/redux/hooks';
-import { logout } from '../lib/redux/slices/userSlice';
-import { fetchWithAuth } from '../lib/api';
+import { logout, updateUser, updateAvatarVersion } from '../lib/redux/slices/userSlice';
+import { fetchWithAuth, bumpAvatarVersion, getCurrentAvatarVersion } from '../lib/api';
 import LoadingScreen from './LoadingScreen';
 import Notifications from './Notifications';
 import { translations } from '../lib/locales';
 import type { UserProfile } from '../types/user';
-import { updateUser } from '../lib/redux/slices/userSlice';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -30,13 +29,58 @@ export default function Profile() {
     title: '',
     message: '',
   });
+  const [isAvatarLoading, setIsAvatarLoading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const apiUrl = import.meta.env.VITE_API_URL;
   const t = translations[language as keyof typeof translations];
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const closeModal = () => {
     setModal({ isOpen: false, title: '', message: '' });
   };
+
+  const updateAvatarPreview = useCallback((avatarUrl: string | null) => {
+    if (!avatarUrl) {
+      setAvatarPreview(null);
+      return;
+    }
+    
+    const baseUrl = avatarUrl.split('?')[0];
+    const version = getCurrentAvatarVersion();
+    setAvatarPreview(`${baseUrl}?v=${version}`);
+  }, []);
+
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === 'avatar_version' && event.newValue && isMounted.current) {
+        dispatch(updateAvatarVersion(event.newValue));
+        if (profile?.avatar) {
+          const baseUrl = profile.avatar.split('?')[0];
+          setAvatarPreview(`${baseUrl}?v=${event.newValue}`);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [dispatch, profile?.avatar]);
+
+  useEffect(() => {
+    if (profile?.avatar && !isAvatarLoading) {
+      updateAvatarPreview(profile.avatar);
+    } else if (!profile?.avatar) {
+      setAvatarPreview(null);
+    }
+  }, [profile?.avatar, updateAvatarPreview, isAvatarLoading]);
 
   const validateEmail = (email: string): string | null => {
     if (!email || email.trim() === '') {
@@ -109,12 +153,13 @@ export default function Profile() {
       return;
     }
     
-    if (file.size > 2 * 1024 * 1024) {
+    if (file.size > 5 * 1024 * 1024) {
       setError('Изображение не должно превышать 2MB');
       return;
     }
     
     setIsUploadingAvatar(true);
+    setIsAvatarLoading(true);
     setError('');
     
     const formData = new FormData();
@@ -132,13 +177,18 @@ export default function Profile() {
       }
       
       const { url } = await response.json();
-      setAvatarPreview(url);
+      
+      const newVersion = bumpAvatarVersion();
+      
+      dispatch(updateUser({ avatar: url }));
+      dispatch(updateAvatarVersion(newVersion));
+      
+      const baseUrl = url.split('?')[0];
+      setAvatarPreview(`${baseUrl}?v=${newVersion}`);
       
       const profileResponse = await fetchWithAuth(`${apiUrl}/auth/me`);
       const profileData = await profileResponse.json();
       setProfile(profileData);
-
-      dispatch(updateUser({ avatar: url }));
       
       setSuccess('Аватар обновлён');
       setTimeout(() => setSuccess(''), 3000);
@@ -147,6 +197,7 @@ export default function Profile() {
       setError(error instanceof Error ? error.message : 'Не удалось загрузить аватар');
     } finally {
       setIsUploadingAvatar(false);
+      setIsAvatarLoading(false);
       if (avatarInputRef.current) avatarInputRef.current.value = '';
     }
   };
@@ -161,16 +212,26 @@ export default function Profile() {
       try {
         const response = await fetchWithAuth(`${apiUrl}/auth/me`);
         const data = await response.json();
-        setProfile(data);
-        setUsername(data.username);
-        setEmail(data.email);
-        setAvatarPreview(data.avatar || null);
+        if (isMounted.current) {
+          setProfile(data);
+          setUsername(data.username);
+          setEmail(data.email);
+          
+          if (data.avatar) {
+            const baseUrl = data.avatar.split('?')[0];
+            const version = getCurrentAvatarVersion();
+            setAvatarPreview(`${baseUrl}?v=${version}`);
+          }
+        }
       } catch (error) {
         console.error('Error loading profile:', error);
       } finally {
-        setLoading(false);
+        if (isMounted.current) {
+          setLoading(false);
+        }
       }
     };
+    
     loadProfile();
   }, [user, navigate, apiUrl]);
 
@@ -248,6 +309,7 @@ export default function Profile() {
 
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      localStorage.removeItem('avatar_version');
       dispatch(logout());
       
       setModal({
@@ -272,6 +334,7 @@ export default function Profile() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('avatar_version');
     dispatch(logout());
     navigate('/login');
   };
@@ -327,8 +390,29 @@ export default function Profile() {
           <div className="flex justify-center mb-8">
             <div className="relative">
               <div className="w-32 h-32 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-xl overflow-hidden">
-                {avatarPreview ? (
-                  <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+                {isAvatarLoading ? (
+                  <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin" />
+                ) : avatarPreview ? (
+                  <img 
+                    src={avatarPreview} 
+                    alt="Avatar" 
+                    className="w-full h-full object-cover"
+                    key={avatarPreview}
+                    onError={(e) => {
+                      // Только один раз пробуем перезагрузить
+                      const img = e.target as HTMLImageElement;
+                      if (!img.hasAttribute('data-retry')) {
+                        img.setAttribute('data-retry', 'true');
+                        const urlWithoutVersion = img.src.split('?')[0];
+                        img.src = urlWithoutVersion;
+                      } else {
+                        setAvatarPreview(null);
+                      }
+                    }}
+                    onLoad={() => {
+                      console.log('Avatar loaded successfully');
+                    }}
+                  />
                 ) : (
                   <span className="text-5xl text-white font-bold">
                     {profile?.username?.charAt(0).toUpperCase()}

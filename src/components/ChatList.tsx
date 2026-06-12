@@ -10,6 +10,7 @@ import type { LastMessage } from '../types/message';
 import LoadingScreen from './LoadingScreen';
 import Notifications from './Notifications';
 import UserMenu from './UserMenu';
+import Logo from './Logo';
 
 export default function ChatList() {
   const navigate = useNavigate();
@@ -332,49 +333,33 @@ export default function ChatList() {
 
   return (
     <>
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex justify-end items-center gap-3 mb-4">
-            <Notifications />
-            <UserMenu username={user?.username || ''} email={user?.email || ''} />
-          </div>
-
-          <div className="mb-6">
-            <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md flex-shrink-0 overflow-hidden">
-                    {user?.avatar ? (
-                      <img src={user.avatar} alt={user.username} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-white font-medium text-base">
-                        {user?.username?.[0]?.toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-purple-300 text-xs">{t.account || 'Аккаунт'}</p>
-                    <p className="text-white font-semibold">{user?.username}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-purple-300 text-xs">{t.totalChats || 'Всего чатов'}</p>
-                  <p className="text-white font-semibold">{chats.length}</p>
-                </div>
-              </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+        <div className="sticky top-0 z-10 bg-white/5 backdrop-blur-sm border-b border-white/10 px-6 py-4">
+          <div className="max-w-4xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Logo variant="icon" />
+              <h1 className="text-xl font-semibold text-white">QueenChat</h1>
             </div>
-
-            <button
-              onClick={() => setIsModalOpen(true)}
-              className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg flex items-center justify-center hover:scale-105 transition z-50"
-              title={t.newChat || 'Новый чат'}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                <line x1="12" y1="5" x2="12" y2="19"/>
-                <line x1="5" y1="12" x2="19" y2="12"/>
-              </svg>
-            </button>
+            <div className="flex items-center gap-4">
+              <div className="relative z-50">
+                <Notifications />
+              </div>
+              <UserMenu username={user?.username || ''} email={user?.email || ''} />
+            </div>
           </div>
+        </div>
+
+        <div className="max-w-4xl mx-auto px-6 py-6">
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="fixed bottom-6 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg flex items-center justify-center hover:scale-105 transition z-50"
+            title={t.newChat || 'Новый чат'}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
 
           <div className="space-y-2">
             {chats.length === 0 ? (
@@ -488,10 +473,20 @@ export default function ChatList() {
                         : 'bg-white/10 hover:bg-white/20'
                     }`}
                   >
-                    <div className="w-8 h-8 rounded-full bg-purple-500/30 flex items-center justify-center">
-                      <span className="text-white text-sm font-medium">
-                        {u.username?.[0]?.toUpperCase()}
-                      </span>
+                    <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0">
+                      {u.avatar ? (
+                        <img 
+                          src={u.avatar} 
+                          alt={u.username} 
+                          className="w-full h-full object-cover rounded-full"
+                        />
+                      ) : (
+                        <div className="w-full h-full rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                          <span className="text-white text-sm font-medium">
+                            {u.username?.[0]?.toUpperCase()}
+                          </span>
+                        </div>
+                      )}
                     </div>
                     <p className="text-white font-medium">{u.username}</p>
                   </div>
