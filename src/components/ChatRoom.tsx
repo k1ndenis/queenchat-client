@@ -12,7 +12,6 @@ import type { ChatInfo } from '../types/chat';
 import UserMenu from './UserMenu';
 import ImageUploader from './ImageUploader';
 import ImageViewer from './ImageViewer';
-import Logo from './Logo';
 
 export default function ChatRoom() {
   const { id } = useParams<{ id: string }>();
@@ -528,32 +527,30 @@ export default function ChatRoom() {
                 </svg>
               </button>
 
-              <Logo variant="icon" />
-              
-              {otherUser ? (
-                <div 
-                  onClick={() => openUserProfile(otherUser.user_id)}
-                  className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
-                  title={t.viewProfile || 'Открыть профиль'}
-                >
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md overflow-hidden">
-                    {otherUser.avatar ? (
-                      <img src={otherUser.avatar} alt={chatName} className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-white font-bold text-base">{chatName?.[0]?.toUpperCase()}</span>
-                    )}
+                {otherUser ? (
+                  <div 
+                    onClick={() => openUserProfile(otherUser.user_id)}
+                    className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                    title={t.viewProfile || 'Открыть профиль'}
+                  >
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md overflow-hidden">
+                      {otherUser.avatar ? (
+                        <img src={otherUser.avatar} alt={chatName} className="w-full h-full object-cover" />
+                      ) : (
+                        <span className="text-white font-bold text-lg">{chatName?.[0]?.toUpperCase()}</span>
+                      )}
+                    </div>
+                    <h1 className="text-xl font-semibold text-white">{chatName}</h1>
                   </div>
-                  <h1 className="text-xl font-semibold text-white">{chatName}</h1>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md overflow-hidden">
-                    <span className="text-white font-bold text-base">{chatName?.[0]?.toUpperCase()}</span>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md overflow-hidden">
+                      <span className="text-white font-bold text-lg">{chatName?.[0]?.toUpperCase()}</span>
+                    </div>
+                    <h1 className="text-xl font-semibold text-white">{chatName}</h1>
                   </div>
-                  <h1 className="text-xl font-semibold text-white">{chatName}</h1>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
             <div className="flex items-center gap-4">
               <div className="relative z-50">
                 <Notifications />

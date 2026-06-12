@@ -6,7 +6,6 @@ import { translations } from '../lib/locales';
 import LoadingScreen from './LoadingScreen';
 import Notifications from './Notifications';
 import UserMenu from './UserMenu';
-import Logo from './Logo';
 import ImageViewer from './ImageViewer';
 import type { User } from '../types/user';
 
@@ -122,7 +121,6 @@ export default function UserProfile() {
                     <polyline points="12 19 5 12 12 5"/>
                   </svg>
                 </button>
-                <Logo variant="icon" />
                 <h1 className="text-xl font-semibold text-white">{t.userProfile || 'Профиль пользователя'}</h1>
               </div>
               <div className="flex items-center gap-4">
@@ -165,7 +163,6 @@ export default function UserProfile() {
                   <polyline points="12 19 5 12 12 5"/>
                 </svg>
               </button>
-              <Logo variant="icon" />
               <h1 className="text-xl font-semibold text-white">
                 {isOwnProfile ? t.myProfile || 'Мой профиль' : t.userProfile || 'Профиль пользователя'}
               </h1>
