@@ -24,18 +24,35 @@ export default function ChatRoom() {
   const [loading, setLoading] = useState(true);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false,
     title: '',
     message: '',
   });
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageInputRef = useRef<HTMLInputElement>(null);
   const apiUrl = import.meta.env.VITE_API_URL;
   const isMounted = useRef(true);
   const messageIds = useRef<Set<string>>(new Set());
 
   const closeModal = () => {
     setModal({ isOpen: false, title: '', message: '' });
+  };
+
+  const cancelReply = () => {
+    setReplyTo(null);
+  };
+
+  const scrollToMessage = (messageId: string) => {
+    const element = document.getElementById(`message-${messageId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.classList.add('bg-purple-500/30', 'transition-all', 'duration-500');
+      setTimeout(() => {
+        element.classList.remove('bg-purple-500/30');
+      }, 2000);
+    }
   };
 
   useEffect(() => {
@@ -59,7 +76,7 @@ export default function ChatRoom() {
   }, [id, navigate]);
 
   const handleImageSent = (data: any) => {
-    const newMessage: Message = {
+    const newMsg: Message = {
       id: data.id,
       content: data.content,
       sender_id: user!.id,
@@ -70,7 +87,7 @@ export default function ChatRoom() {
     };
 
     setMessages(prev => {
-      const newMessages = [...prev, newMessage];
+      const newMessages = [...prev, newMsg];
       newMessages.sort((a, b) => a.created_at - b.created_at);
       return newMessages;
     });
@@ -100,66 +117,61 @@ export default function ChatRoom() {
     }
   }, []);
 
-  useEffect(() => {
+  const loadChatData = useCallback(async () => {
     if (!user || !id || id === 'undefined') return;
-
-    const loadChatData = async () => {
-      setLoading(true);
-      
-      try {
-        messageIds.current.clear();
-        
-        const [chatResponse, messagesResponse] = await Promise.all([
-          fetchWithAuth(`${apiUrl}/chats/${id}`),
-          fetchWithAuth(`${apiUrl}/chats/${id}/messages`),
-        ]);
-
-        if (!chatResponse.ok) throw new Error('Failed to load chat');
-        
-        const chatData = await chatResponse.json();
-        setChat(chatData);
-        
-        const isParticipant = chatData.participants?.some((p: any) => p.id === user.id);
-        if (!isParticipant) {
-          await ensureParticipant(id, user.id);
-        }
-        
-        if (messagesResponse.ok) {
-          let messagesData = await messagesResponse.json();
-          if (Array.isArray(messagesData)) {
-            messagesData.forEach((msg: Message) => {
-              messageIds.current.add(msg.id);
-            });
-            messagesData.sort((a: Message, b: Message) => a.created_at - b.created_at);
-            setMessages(messagesData);
-          }
-        }
-      } catch (error) {
-        console.error(error);
-        navigate('/chat');
-      } finally {
-        setLoading(false);
-      }
-    };
     
-    loadChatData();
+    setLoading(true);
+    try {
+      messageIds.current.clear();
+      
+      const [chatResponse, messagesResponse] = await Promise.all([
+        fetchWithAuth(`${apiUrl}/chats/${id}`),
+        fetchWithAuth(`${apiUrl}/chats/${id}/messages`),
+      ]);
+
+      if (!chatResponse.ok) throw new Error('Failed to load chat');
+      
+      const chatData = await chatResponse.json();
+      setChat(chatData);
+      
+      const isParticipant = chatData.participants?.some((p: any) => p.id === user.id);
+      if (!isParticipant) {
+        await ensureParticipant(id, user.id);
+      }
+      
+      if (messagesResponse.ok) {
+        let messagesData = await messagesResponse.json();
+        if (Array.isArray(messagesData)) {
+          messagesData.forEach((msg: Message) => {
+            messageIds.current.add(msg.id);
+          });
+          messagesData.sort((a: Message, b: Message) => a.created_at - b.created_at);
+          setMessages(messagesData);
+        }
+      }
+    } catch (error) {
+      console.error(error);
+      navigate('/chat');
+    } finally {
+      setLoading(false);
+    }
   }, [id, user, apiUrl, navigate, ensureParticipant]);
+
+  useEffect(() => {
+    loadChatData();
+  }, [loadChatData]);
 
   useEffect(() => {
     if (!user || !id || loading) return;
 
     const markEverythingAsRead = async () => {
       try {
-        const messagesResponse = await fetchWithAuth(`${apiUrl}/chats/${id}/messages/read/all`, {
+        await fetchWithAuth(`${apiUrl}/chats/${id}/messages/read/all`, {
           method: 'POST',
         });
-        const messagesData = await messagesResponse.json();
-
-        const notificationsResponse = await fetchWithAuth(`${apiUrl}/notifications/read/by-chat/${id}`, {
+        await fetchWithAuth(`${apiUrl}/notifications/read/by-chat/${id}`, {
           method: 'PATCH',
         });
-        const notificationsData = await notificationsResponse.json();
-
         setMessages(prev =>
           prev.map(msg => {
             if (msg.sender_id !== user.id && !msg.is_read) {
@@ -176,7 +188,6 @@ export default function ChatRoom() {
     const timer = setTimeout(() => {
       markEverythingAsRead();
     }, 1000);
-
     return () => clearTimeout(timer);
   }, [id, user, loading, apiUrl]);
 
@@ -264,6 +275,11 @@ export default function ChatRoom() {
     return () => clearTimeout(timeoutId);
   }, [messages, user, id, apiUrl]);
 
+  const handleReply = (msg: Message) => {
+    setReplyTo(msg);
+    messageInputRef.current?.focus();
+  };
+
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !newMessage.trim() || !id) return;
@@ -288,9 +304,14 @@ export default function ChatRoom() {
     setNewMessage('');
 
     try {
+      const payload: any = { content: newMessage };
+      if (replyTo?.id) {
+        payload.reply_to_id = replyTo.id;
+      }
+      
       const response = await fetchWithAuth(`${apiUrl}/chats/${id}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ content: newMessage }),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) throw new Error('Failed to send message');
@@ -301,12 +322,13 @@ export default function ChatRoom() {
       messageIds.current.add(data.id);
       
       setMessages(prev => 
-        prev.map(msg => msg.id === tempId ? { ...data } : msg)
+        prev.map(msg => msg.id === tempId ? { ...data, reply_to_id: replyTo?.id } : msg)
           .sort((a, b) => a.created_at - b.created_at)
       );
 
       socket.emit('send-message', { ...data, chat_id: id });
       
+      setReplyTo(null);
       setTimeout(scrollToBottom, 100);
       
     } catch (error) {
@@ -446,14 +468,17 @@ export default function ChatRoom() {
                         });
                       }
                     } catch {
+                      formattedDate = '';
                     }
 
                     const isOwn = msg.sender_id === user?.id;
+                    const replyToMsg = msg.reply_to_id ? messages.find(m => m.id === msg.reply_to_id) : null;
 
                     return (
                       <div
+                        id={`message-${msg.id}`}
                         key={msg.id}
-                        className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} scroll-mt-20`}
                       >
                         <div
                           className={`max-w-[70%] px-4 py-2 rounded-2xl ${
@@ -462,17 +487,28 @@ export default function ChatRoom() {
                               : 'bg-white/10 text-white'
                           }`}
                         >
+                          {replyToMsg && (
+                            <div 
+                              onClick={() => scrollToMessage(replyToMsg.id)}
+                              className="mb-1 pb-1 border-l-2 border-purple-400 pl-2 text-xs opacity-60 cursor-pointer hover:opacity-100 transition"
+                              title="Перейти к сообщению"
+                            >
+                              <span className="font-medium">Ответ на сообщение:</span>
+                              <p className="truncate">
+                                {replyToMsg.is_image ? '📷 Изображение' : replyToMsg.content}
+                              </p>
+                            </div>
+                          )}
+                          
                           {msg.is_image ? (
-                            <>
-                              <div className="max-w-[250px] md:max-w-[300px]">
-                                <img 
-                                  src={msg.content} 
-                                  alt="image" 
-                                  className="w-full h-auto max-h-[250px] md:max-h-[300px] rounded-lg cursor-pointer object-contain hover:opacity-90 transition"
-                                  onClick={() => setPreviewImage(msg.content)}
-                                />
-                              </div>
-                            </>
+                            <div className="max-w-[250px] md:max-w-[300px]">
+                              <img 
+                                src={msg.content} 
+                                alt="image" 
+                                className="w-full h-auto max-h-[250px] md:max-h-[300px] rounded-lg cursor-pointer object-contain hover:opacity-90 transition"
+                                onClick={() => setPreviewImage(msg.content)}
+                              />
+                            </div>
                           ) : msg.is_sticker ? (
                             <span className="text-6xl block leading-none break-keep">{msg.content}</span>
                           ) : (
@@ -480,7 +516,28 @@ export default function ChatRoom() {
                               {msg.content}
                             </p>
                           )}
-                          <div className="flex items-center justify-end gap-1 mt-1">
+                          
+                          <div className="flex items-center justify-end gap-2 mt-1">
+                            <button
+                              onClick={() => handleReply(msg)}
+                              className="text-white/50 hover:text-white transition p-1 rounded-lg hover:bg-white/10"
+                              title="Ответить"
+                            >
+                              <svg 
+                                xmlns="http://www.w3.org/2000/svg" 
+                                width="14" 
+                                height="14" 
+                                viewBox="0 0 24 24" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                strokeWidth="2" 
+                                strokeLinecap="round" 
+                                strokeLinejoin="round"
+                              >
+                                <path d="M3 10h10a8 8 0 0 1 8 8v2"/>
+                                <path d="M3 10l4-4-4-4"/>
+                              </svg>
+                            </button>
                             <p className="text-xs opacity-70">{formattedDate}</p>
                             {isOwn && (
                               <span className="text-xs opacity-70">
@@ -502,6 +559,27 @@ export default function ChatRoom() {
 
         <div className="border-t border-white/10 px-4 py-3 md:px-6 md:py-4">
           <form onSubmit={sendMessage} className="max-w-4xl mx-auto">
+            {replyTo && (
+              <div className="mb-2 p-2 bg-purple-500/20 rounded-lg flex justify-between items-center">
+                <div 
+                  className="flex-1 cursor-pointer hover:opacity-80 transition overflow-hidden"
+                  onClick={() => scrollToMessage(replyTo.id)}
+                  title="Перейти к сообщению"
+                >
+                  <p className="text-xs text-purple-300">Ответ на сообщение:</p>
+                  <p className="text-sm text-white truncate max-w-[300px] md:max-w-[500px]">
+                    {replyTo.is_image ? '📷 Изображение' : replyTo.content}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={cancelReply}
+                  className="text-white/60 hover:text-white text-xl ml-2 flex-shrink-0"
+                >
+                  ×
+                </button>
+              </div>
+            )}
             <div className="flex gap-2 items-center">
               <button
                 type="button"
@@ -535,6 +613,7 @@ export default function ChatRoom() {
               />
               
               <input
+                ref={messageInputRef}
                 type="text"
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
@@ -565,7 +644,6 @@ export default function ChatRoom() {
         />
       )}
 
-      {/* Модальное окно для просмотра изображения */}
       {previewImage && (
         <div 
           className="fixed inset-0 z-[100001] bg-black/90 flex items-center justify-center"

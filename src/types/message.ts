@@ -7,7 +7,8 @@ export interface Message {
   is_read: boolean;
   is_sticker?: boolean;
   is_image?: boolean;
-  sticker_id?: string | null;
+  reply_to_id?: string;
+  reply_to_message?: Message;
 }
 
 export interface LastMessage {
