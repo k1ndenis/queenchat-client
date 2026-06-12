@@ -343,10 +343,14 @@ export default function ChatList() {
             <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-lg">
-                    <span className="text-white text-lg font-medium">
-                      {user?.username?.[0]?.toUpperCase()}
-                    </span>
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md flex-shrink-0 overflow-hidden">
+                    {user?.avatar ? (
+                      <img src={user.avatar} alt={user.username} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-white font-medium text-base">
+                        {user?.username?.[0]?.toUpperCase()}
+                      </span>
+                    )}
                   </div>
                   <div>
                     <p className="text-purple-300 text-xs">{t.account || 'Аккаунт'}</p>
@@ -379,15 +383,12 @@ export default function ChatList() {
               </div>
             ) : (
               chats.map(chat => {
-                let displayName = chat.name;
-                let avatarLetter = '';
-                if (!displayName && !chat.is_group) {
-                  const otherUser = chat.participants.find(p => p.username !== user?.username);
-                  displayName = otherUser?.username || t.chat || 'Чат';
-                  avatarLetter = otherUser?.username?.[0]?.toUpperCase() || 'Ч';
-                } else {
-                  avatarLetter = displayName?.[0]?.toUpperCase() || 'Ч';
-                }
+                const otherUser = !chat.is_group && chat.participants.find(p => p.user_id !== user?.id);
+                const avatarUrl = otherUser?.avatar;
+                const avatarLetter = otherUser?.username?.[0]?.toUpperCase() || 
+                                    chat.name?.[0]?.toUpperCase() || 
+                                    'Ч';
+                const displayName = chat.name || otherUser?.username || t.chat || 'Чат';
                 
                 const lastMsg = lastMessages.get(chat.id);
                 const isOwn = lastMsg?.sender_id === user?.id;
@@ -404,10 +405,12 @@ export default function ChatList() {
                   >
                     <div className="flex items-center gap-3">
                       <div className="relative">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md flex-shrink-0">
-                          <span className="text-white font-medium text-base">
-                            {avatarLetter}
-                          </span>
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md flex-shrink-0 overflow-hidden">
+                          {avatarUrl ? (
+                            <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-white font-medium text-base">{avatarLetter}</span>
+                          )}
                         </div>
                         {unreadCount > 0 && (
                           <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-[20px] flex items-center justify-center px-1 font-bold">
@@ -452,125 +455,125 @@ export default function ChatList() {
             )}
           </div>
         </div>
+      </div>
 
-        {isModalOpen && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gradient-to-br from-slate-800 to-purple-900 rounded-2xl p-6 w-full max-w-md mx-4">
-              <h2 className="text-2xl font-bold text-white mb-4">{t.newChat}</h2>
-              <p className="text-purple-200 mb-4">{t.selectUser}</p>
-              
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t.searchUser}
-                className="w-full px-4 py-2 bg-white/10 border border-purple-300/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 mb-4"
-                autoFocus
-              />
-              
-              <div className="max-h-64 overflow-y-auto mb-4 space-y-2">
-                {filteredUsers.length === 0 ? (
-                  <p className="text-purple-300 text-center py-4">
-                    {searchQuery ? t.userNotFound : t.noUsers}
-                  </p>
-                ) : (
-                  filteredUsers.map(u => (
-                    <div
-                      key={u.id}
-                      onClick={() => setSelectedUser(u)}
-                      className={`p-3 rounded-lg cursor-pointer transition flex items-center gap-3 ${
-                        selectedUser?.id === u.id
-                          ? 'bg-gradient-to-r from-purple-500 to-pink-500'
-                          : 'bg-white/10 hover:bg-white/20'
-                      }`}
-                    >
-                      <div className="w-8 h-8 rounded-full bg-purple-500/30 flex items-center justify-center">
-                        <span className="text-white text-sm font-medium">
-                          {u.username?.[0]?.toUpperCase()}
-                        </span>
-                      </div>
-                      <p className="text-white font-medium">{u.username}</p>
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gradient-to-br from-slate-800 to-purple-900 rounded-2xl p-6 w-full max-w-md mx-4">
+            <h2 className="text-2xl font-bold text-white mb-4">{t.newChat}</h2>
+            <p className="text-purple-200 mb-4">{t.selectUser}</p>
+            
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t.searchUser}
+              className="w-full px-4 py-2 bg-white/10 border border-purple-300/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 mb-4"
+              autoFocus
+            />
+            
+            <div className="max-h-64 overflow-y-auto mb-4 space-y-2">
+              {filteredUsers.length === 0 ? (
+                <p className="text-purple-300 text-center py-4">
+                  {searchQuery ? t.userNotFound : t.noUsers}
+                </p>
+              ) : (
+                filteredUsers.map(u => (
+                  <div
+                    key={u.id}
+                    onClick={() => setSelectedUser(u)}
+                    className={`p-3 rounded-lg cursor-pointer transition flex items-center gap-3 ${
+                      selectedUser?.id === u.id
+                        ? 'bg-gradient-to-r from-purple-500 to-pink-500'
+                        : 'bg-white/10 hover:bg-white/20'
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-purple-500/30 flex items-center justify-center">
+                      <span className="text-white text-sm font-medium">
+                        {u.username?.[0]?.toUpperCase()}
+                      </span>
                     </div>
-                  ))
-                )}
-              </div>
-              
-              {error && (
-                <p className="text-red-400 text-sm mb-4">{error}</p>
+                    <p className="text-white font-medium">{u.username}</p>
+                  </div>
+                ))
               )}
-              
-              <div className="flex gap-3">
-                <button
-                  onClick={handleCreateChat}
-                  disabled={!selectedUser}
-                  className={`flex-1 px-4 py-2 rounded-lg transition ${
-                    selectedUser
-                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 cursor-pointer'
-                      : 'bg-white/20 text-white/50 cursor-not-allowed'
-                  }`}
-                >
-                  {t.createChat}
-                </button>
-                <button
-                  onClick={() => {
-                    setIsModalOpen(false);
-                    setSearchQuery('');
-                    setSelectedUser(null);
-                    setError('');
-                  }}
-                  className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition cursor-pointer"
-                >
-                  {t.cancel}
-                </button>
-              </div>
             </div>
-          </div>
-        )}
-
-        {deleteChatId && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gradient-to-br from-slate-800 to-red-900 rounded-2xl p-6 w-full max-w-md mx-4">
-              <h2 className="text-2xl font-bold text-white mb-4">{t.deleteChat}</h2>
-              <p className="text-purple-200 mb-6">{t.deleteChatWarning}</p>
-              
-              <div className="flex gap-3">
-                <button
-                  onClick={handleDeleteChat}
-                  className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition cursor-pointer"
-                >
-                  {t.delete}
-                </button>
-                <button
-                  onClick={() => setDeleteChatId(null)}
-                  className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition cursor-pointer"
-                >
-                  {t.cancel}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {modal.isOpen && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gradient-to-br from-slate-800 to-purple-900 rounded-2xl p-6 w-full max-w-md mx-4">
-              <div className="text-center mb-4">
-                <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <span className="text-3xl">⚠️</span>
-                </div>
-                <h2 className="text-2xl font-bold text-white">{modal.title}</h2>
-                <p className="text-purple-200 mt-2">{modal.message}</p>
-              </div>
+            
+            {error && (
+              <p className="text-red-400 text-sm mb-4">{error}</p>
+            )}
+            
+            <div className="flex gap-3">
               <button
-                onClick={closeModal}
-                className="w-full py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl hover:opacity-90 transition cursor-pointer"
+                onClick={handleCreateChat}
+                disabled={!selectedUser}
+                className={`flex-1 px-4 py-2 rounded-lg transition ${
+                  selectedUser
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 cursor-pointer'
+                    : 'bg-white/20 text-white/50 cursor-not-allowed'
+                }`}
               >
-                {t.ok}
+                {t.createChat}
+              </button>
+              <button
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setSearchQuery('');
+                  setSelectedUser(null);
+                  setError('');
+                }}
+                className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition cursor-pointer"
+              >
+                {t.cancel}
               </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
+
+      {deleteChatId && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gradient-to-br from-slate-800 to-red-900 rounded-2xl p-6 w-full max-w-md mx-4">
+            <h2 className="text-2xl font-bold text-white mb-4">{t.deleteChat}</h2>
+            <p className="text-purple-200 mb-6">{t.deleteChatWarning}</p>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeleteChat}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition cursor-pointer"
+              >
+                {t.delete}
+              </button>
+              <button
+                onClick={() => setDeleteChatId(null)}
+                className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition cursor-pointer"
+              >
+                {t.cancel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal.isOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gradient-to-br from-slate-800 to-purple-900 rounded-2xl p-6 w-full max-w-md mx-4">
+            <div className="text-center mb-4">
+              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <span className="text-3xl">⚠️</span>
+              </div>
+              <h2 className="text-2xl font-bold text-white">{modal.title}</h2>
+              <p className="text-purple-200 mt-2">{modal.message}</p>
+            </div>
+            <button
+              onClick={closeModal}
+              className="w-full py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl hover:opacity-90 transition cursor-pointer"
+            >
+              {t.ok}
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

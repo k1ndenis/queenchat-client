@@ -53,6 +53,11 @@ const userSlice = createSlice({
       state.language = action.payload;
       localStorage.setItem('queenchat_language', action.payload);
     },
+    updateUser: (state, action: PayloadAction<Partial<User>>) => {
+      if (state.user) {
+        state.user = { ...state.user, ...action.payload };
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -70,5 +75,5 @@ const userSlice = createSlice({
   },
 });
 
-export const { setUser, setLoading, logout, setLanguage } = userSlice.actions;
+export const { setUser, setLoading, logout, setLanguage, updateUser } = userSlice.actions;
 export default userSlice.reducer;

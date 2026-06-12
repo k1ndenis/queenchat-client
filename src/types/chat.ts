@@ -1,15 +1,19 @@
+export interface ChatParticipant {
+  user_id: string;
+  username: string;
+  email: string;
+  avatar?: string;
+  joined_at: number;
+}
+
 export interface Chat {
   id: string;
   name: string | null;
   is_group: boolean;
+  participants: ChatParticipant[];
   created_by: string;
   created_at: number;
   updated_at: number;
-  participants: Array<{
-    id: string;
-    username: string;
-    email: string;
-  }>;
 }
 
 export interface ChatInfo {

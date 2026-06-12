@@ -15,6 +15,7 @@ export default function UserMenu({ username, email }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef = useRef<HTMLDivElement>(null);
   const language = useAppSelector(state => state.user.language);
+  const { user } = useAppSelector(state => state.user);
   const t = translations[language as keyof typeof translations];
 
   useEffect(() => {
@@ -37,9 +38,20 @@ export default function UserMenu({ username, email }: UserMenuProps) {
 
   const menuContent = (
     <div className="bg-slate-800 rounded-xl shadow-2xl border border-white/10 overflow-hidden w-64 user-menu-panel">
-      <div className="p-4 border-b border-white/10 bg-white/5">
-        <p className="text-white font-semibold">{username}</p>
-        <p className="text-purple-300 text-xs mt-0.5 truncate">{email}</p>
+      <div className="p-4 border-b border-white/10 bg-white/5 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center overflow-hidden">
+          {user?.avatar ? (
+            <img src={user.avatar} alt={username} className="w-full h-full object-cover" />
+          ) : (
+            <span className="text-white text-base font-medium">
+              {username?.[0]?.toUpperCase()}
+            </span>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-white font-semibold truncate">{username}</p>
+          <p className="text-purple-300 text-xs mt-0.5 truncate">{email}</p>
+        </div>
       </div>
       <div className="py-2">
         <button
@@ -89,11 +101,15 @@ export default function UserMenu({ username, email }: UserMenuProps) {
     <div className="relative user-menu" ref={buttonRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 hover:scale-105 transition-all duration-200 flex items-center justify-center shadow-lg"
+        className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 hover:scale-105 transition-all duration-200 flex items-center justify-center shadow-lg overflow-hidden"
       >
-        <span className="text-white text-lg font-medium">
-          {username?.[0]?.toUpperCase() || 'U'}
-        </span>
+        {user?.avatar ? (
+          <img src={user.avatar} alt={username} className="w-full h-full object-cover" />
+        ) : (
+          <span className="text-white text-lg font-medium">
+            {username?.[0]?.toUpperCase() || 'U'}
+          </span>
+        )}
       </button>
 
       {isOpen && (

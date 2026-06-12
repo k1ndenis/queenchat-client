@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../lib/redux/hooks';
 import { logout } from '../lib/redux/slices/userSlice';
@@ -7,6 +7,7 @@ import LoadingScreen from './LoadingScreen';
 import Notifications from './Notifications';
 import { translations } from '../lib/locales';
 import type { UserProfile } from '../types/user';
+import { updateUser } from '../lib/redux/slices/userSlice';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -17,6 +18,8 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -27,6 +30,7 @@ export default function Profile() {
     title: '',
     message: '',
   });
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const apiUrl = import.meta.env.VITE_API_URL;
   const t = translations[language as keyof typeof translations];
 
@@ -96,6 +100,57 @@ export default function Profile() {
     return null;
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+      setError('Можно загружать только изображения');
+      return;
+    }
+    
+    if (file.size > 2 * 1024 * 1024) {
+      setError('Изображение не должно превышать 2MB');
+      return;
+    }
+    
+    setIsUploadingAvatar(true);
+    setError('');
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    try {
+      const response = await fetchWithAuth(`${apiUrl}/files/upload-avatar`, {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to upload avatar');
+      }
+      
+      const { url } = await response.json();
+      setAvatarPreview(url);
+      
+      const profileResponse = await fetchWithAuth(`${apiUrl}/auth/me`);
+      const profileData = await profileResponse.json();
+      setProfile(profileData);
+
+      dispatch(updateUser({ avatar: url }));
+      
+      setSuccess('Аватар обновлён');
+      setTimeout(() => setSuccess(''), 3000);
+      
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Не удалось загрузить аватар');
+    } finally {
+      setIsUploadingAvatar(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
+
   useEffect(() => {
     if (!user) {
       navigate('/login');
@@ -109,6 +164,7 @@ export default function Profile() {
         setProfile(data);
         setUsername(data.username);
         setEmail(data.email);
+        setAvatarPreview(data.avatar || null);
       } catch (error) {
         console.error('Error loading profile:', error);
       } finally {
@@ -269,10 +325,38 @@ export default function Profile() {
 
         <div className="max-w-2xl mx-auto px-6 py-12">
           <div className="flex justify-center mb-8">
-            <div className="w-32 h-32 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-xl">
-              <span className="text-5xl text-white font-bold">
-                {profile?.username?.charAt(0).toUpperCase()}
-              </span>
+            <div className="relative">
+              <div className="w-32 h-32 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center shadow-xl overflow-hidden">
+                {avatarPreview ? (
+                  <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-5xl text-white font-bold">
+                    {profile?.username?.charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={isUploadingAvatar}
+                className="absolute bottom-0 right-0 bg-purple-500 rounded-full p-2 shadow-lg hover:bg-purple-600 transition disabled:opacity-50"
+                title="Изменить аватар"
+              >
+                {isUploadingAvatar ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
+                    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                    <circle cx="12" cy="13" r="4"/>
+                  </svg>
+                )}
+              </button>
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                className="hidden"
+              />
             </div>
           </div>
 
