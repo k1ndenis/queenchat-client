@@ -93,6 +93,44 @@ export default function ChatRoom() {
     setViewerIndex(index);
   };
 
+  const groupMessagesByDate = (msgs: Message[]) => {
+    const groups: { dateKey: string; dateLabel: string; messages: Message[] }[] = [];
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    msgs.forEach((msg) => {
+      const date = new Date(msg.created_at * 1000);
+      const dateKey = date.toDateString();
+      
+      let dateLabel = '';
+      if (dateKey === today.toDateString()) {
+        dateLabel = 'Сегодня';
+      } else if (dateKey === yesterday.toDateString()) {
+        dateLabel = 'Вчера';
+      } else {
+        dateLabel = date.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US', {
+          day: 'numeric',
+          month: 'long',
+          year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
+        });
+      }
+
+      const lastGroup = groups[groups.length - 1];
+      if (lastGroup && lastGroup.dateKey === dateKey) {
+        lastGroup.messages.push(msg);
+      } else {
+        groups.push({
+          dateKey,
+          dateLabel,
+          messages: [msg]
+        });
+      }
+    });
+
+    return groups;
+  };
+
   useEffect(() => {
     isMounted.current = true;
     return () => {
@@ -510,6 +548,8 @@ export default function ChatRoom() {
   const chatName = getChatDisplayName();
   const otherUser = getOtherUser();
   
+  const messageGroups = groupMessagesByDate(messages);
+  
   return (
     <>
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col h-screen">
@@ -527,30 +567,30 @@ export default function ChatRoom() {
                 </svg>
               </button>
 
-                {otherUser ? (
-                  <div 
-                    onClick={() => openUserProfile(otherUser.user_id)}
-                    className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
-                    title={t.viewProfile || 'Открыть профиль'}
-                  >
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md overflow-hidden">
-                      {otherUser.avatar ? (
-                        <img src={otherUser.avatar} alt={chatName} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-white font-bold text-lg">{chatName?.[0]?.toUpperCase()}</span>
-                      )}
-                    </div>
-                    <h1 className="text-xl font-semibold text-white">{chatName}</h1>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md overflow-hidden">
+              {otherUser ? (
+                <div 
+                  onClick={() => openUserProfile(otherUser.user_id)}
+                  className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity"
+                  title={t.viewProfile || 'Открыть профиль'}
+                >
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md overflow-hidden">
+                    {otherUser.avatar ? (
+                      <img src={otherUser.avatar} alt={chatName} className="w-full h-full object-cover" />
+                    ) : (
                       <span className="text-white font-bold text-lg">{chatName?.[0]?.toUpperCase()}</span>
-                    </div>
-                    <h1 className="text-xl font-semibold text-white">{chatName}</h1>
+                    )}
                   </div>
-                )}
-              </div>
+                  <h1 className="text-xl font-semibold text-white">{chatName}</h1>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center shadow-md overflow-hidden">
+                    <span className="text-white font-bold text-lg">{chatName?.[0]?.toUpperCase()}</span>
+                  </div>
+                  <h1 className="text-xl font-semibold text-white">{chatName}</h1>
+                </div>
+              )}
+            </div>
             <div className="flex items-center gap-4">
               <div className="relative z-50">
                 <Notifications />
@@ -563,110 +603,120 @@ export default function ChatRoom() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto px-6 py-4">
             <div className="max-w-4xl mx-auto flex flex-col min-h-full">
-              <div className="space-y-3">
-                {messages.length === 0 ? (
-                  <div className="text-center text-purple-300 py-8">
-                    {t.noMessages}
-                  </div>
-                ) : (
-                  messages.map((msg) => {
-                    let formattedDate = '';
-                    try {
-                      const date = new Date(msg.created_at * 1000);
-                      if (!isNaN(date.getTime())) {
-                        formattedDate = date.toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        });
-                      }
-                    } catch {
-                      formattedDate = '';
-                    }
-
-                    const isOwn = msg.sender_id === user?.id;
-                    const replyToMsg = msg.reply_to_id ? messages.find(m => m.id === msg.reply_to_id) : null;
-                    const imageUrls = parseImages(msg);
-
-                    return (
-                      <div
-                        id={`message-${msg.id}`}
-                        key={msg.id}
-                        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} scroll-mt-20`}
-                      >
-                        <div
-                          className={`max-w-[70%] px-4 py-2 rounded-2xl ${
-                            isOwn
-                              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
-                              : 'bg-white/10 text-white'
-                          }`}
-                        >
-                          {replyToMsg && (
-                            <div 
-                              onClick={() => scrollToMessage(replyToMsg.id)}
-                              className="mb-1 pb-1 border-l-2 border-purple-400 pl-2 text-xs opacity-60 cursor-pointer hover:opacity-100 transition"
-                              title="Перейти к сообщению"
-                            >
-                              <span className="font-medium">Ответ на сообщение:</span>
-                              <p className="truncate">
-                                {replyToMsg.is_image ? '📷 Изображение' : replyToMsg.content}
-                              </p>
-                            </div>
-                          )}
-                          
-                          {imageUrls.length > 0 ? (
-                            <div className={`grid ${imageUrls.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-1 max-w-[300px]`}>
-                              {imageUrls.map((url, idx) => (
-                                <img 
-                                  key={idx}
-                                  src={url} 
-                                  alt={`image ${idx + 1}`} 
-                                  className="w-full h-32 object-cover rounded-lg cursor-pointer hover:opacity-90 transition"
-                                  onClick={() => openImageViewer(imageUrls, idx)}
-                                />
-                              ))}
-                            </div>
-                          ) : msg.is_sticker ? (
-                            <span className="text-6xl block leading-none break-keep">{msg.content}</span>
-                          ) : (
-                            <p className="break-words whitespace-pre-wrap overflow-wrap-anywhere">
-                              {msg.content}
-                            </p>
-                          )}
-                          
-                          <div className="flex items-center justify-end gap-2 mt-1">
-                            <button
-                              onClick={() => handleReply(msg)}
-                              className="text-white/50 hover:text-white transition p-1 rounded-lg hover:bg-white/10"
-                              title="Ответить"
-                            >
-                              <svg 
-                                xmlns="http://www.w3.org/2000/svg" 
-                                width="14" 
-                                height="14" 
-                                viewBox="0 0 24 24" 
-                                fill="none" 
-                                stroke="currentColor" 
-                                strokeWidth="2" 
-                                strokeLinecap="round" 
-                                strokeLinejoin="round"
-                              >
-                                <path d="M3 10h10a8 8 0 0 1 8 8v2"/>
-                                <path d="M3 10l4-4-4-4"/>
-                              </svg>
-                            </button>
-                            <p className="text-xs opacity-70">{formattedDate}</p>
-                            {isOwn && (
-                              <span className="text-xs opacity-70">
-                                {msg.is_read ? '✓✓' : '✓'}
-                              </span>
-                            )}
-                          </div>
-                        </div>
+              {messages.length === 0 ? (
+                <div className="text-center text-purple-300 py-8">
+                  {t.noMessages}
+                </div>
+              ) : (
+                messageGroups.map((group, groupIndex) => (
+                  <div key={group.dateKey} className={groupIndex > 0 ? 'mt-6' : ''}>
+                    <div className="flex justify-center my-4">
+                      <div className="bg-white/10 backdrop-blur-sm px-4 py-1 rounded-full border border-white/10">
+                        <span className="text-purple-300 text-xs font-medium">{group.dateLabel}</span>
                       </div>
-                    );
-                  })
-                )}
-              </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      {group.messages.map((msg) => {
+                        let formattedDate = '';
+                        try {
+                          const date = new Date(msg.created_at * 1000);
+                          if (!isNaN(date.getTime())) {
+                            formattedDate = date.toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            });
+                          }
+                        } catch {
+                          formattedDate = '';
+                        }
+
+                        const isOwn = msg.sender_id === user?.id;
+                        const replyToMsg = msg.reply_to_id ? messages.find(m => m.id === msg.reply_to_id) : null;
+                        const imageUrls = parseImages(msg);
+
+                        return (
+                          <div
+                            id={`message-${msg.id}`}
+                            key={msg.id}
+                            className={`flex ${isOwn ? 'justify-end' : 'justify-start'} scroll-mt-20`}
+                          >
+                            <div
+                              className={`max-w-[70%] px-4 py-2 rounded-2xl ${
+                                isOwn
+                                  ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                                  : 'bg-white/10 text-white'
+                              }`}
+                            >
+                              {replyToMsg && (
+                                <div 
+                                  onClick={() => scrollToMessage(replyToMsg.id)}
+                                  className="mb-1 pb-1 border-l-2 border-purple-400 pl-2 text-xs opacity-60 cursor-pointer hover:opacity-100 transition"
+                                  title="Перейти к сообщению"
+                                >
+                                  <span className="font-medium">Ответ на сообщение:</span>
+                                  <p className="truncate">
+                                    {replyToMsg.is_image ? '📷 Изображение' : replyToMsg.content}
+                                  </p>
+                                </div>
+                              )}
+                              
+                              {imageUrls.length > 0 ? (
+                                <div className={`grid ${imageUrls.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-1 max-w-[300px]`}>
+                                  {imageUrls.map((url, idx) => (
+                                    <img 
+                                      key={idx}
+                                      src={url} 
+                                      alt={`image ${idx + 1}`} 
+                                      className="w-full h-32 object-cover rounded-lg cursor-pointer hover:opacity-90 transition"
+                                      onClick={() => openImageViewer(imageUrls, idx)}
+                                    />
+                                  ))}
+                                </div>
+                              ) : msg.is_sticker ? (
+                                <span className="text-6xl block leading-none break-keep">{msg.content}</span>
+                              ) : (
+                                <p className="break-words whitespace-pre-wrap overflow-wrap-anywhere">
+                                  {msg.content}
+                                </p>
+                              )}
+                              
+                              <div className="flex items-center justify-end gap-2 mt-1">
+                                <button
+                                  onClick={() => handleReply(msg)}
+                                  className="text-white/50 hover:text-white transition p-1 rounded-lg hover:bg-white/10"
+                                  title="Ответить"
+                                >
+                                  <svg 
+                                    xmlns="http://www.w3.org/2000/svg" 
+                                    width="14" 
+                                    height="14" 
+                                    viewBox="0 0 24 24" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    strokeWidth="2" 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round"
+                                  >
+                                    <path d="M3 10h10a8 8 0 0 1 8 8v2"/>
+                                    <path d="M3 10l4-4-4-4"/>
+                                  </svg>
+                                </button>
+                                <p className="text-xs opacity-70">{formattedDate}</p>
+                                {isOwn && (
+                                  <span className="text-xs opacity-70">
+                                    {msg.is_read ? '✓✓' : '✓'}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
               <div className="mt-auto" />
               <div ref={messagesEndRef} />
             </div>
@@ -743,7 +793,7 @@ export default function ChatRoom() {
                 title={t.send}
               >
                 <img
-                  src="/logo.png"
+                  src="/favicon-96x96.png"
                   alt="Send"
                   className="w-10 h-10 object-contain"
                 />

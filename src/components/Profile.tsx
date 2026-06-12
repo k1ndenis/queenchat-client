@@ -136,7 +136,7 @@ export default function Profile() {
       return t.usernameTooLong || 'Имя пользователя не может быть длиннее 50 символов';
     }
 
-    const usernameRegex = /^[a-zA-Z0-9_-]+$/;
+    const usernameRegex = /^[a-zA-Zа-яА-Я0-9_-]+$/;
     if (!usernameRegex.test(username)) {
       return t.usernameInvalid || 'Имя пользователя может содержать только буквы, цифры, дефис и нижнее подчеркивание';
     }
