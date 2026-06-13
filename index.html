@@ -1,20 +1,76 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>QueenChat</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="shortcut icon" href="/favicon.ico" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
-    <link rel="manifest" href="/site.webmanifest" />
-  </head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <!-- PWA / UI -->
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#7c3aed" />
+  <!-- iOS (still needed for proper UI handling) -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="QueenChat" />
+  <title>QueenChat</title>
+  <!-- PWA assets -->
+  <link rel="manifest" href="/site.webmanifest" />
+  <link rel="icon" href="/favicon.ico" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <!-- Performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <!-- Fonts -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap"
+    rel="stylesheet"
+  />
+</head>
+
   <body>
     <div id="root"></div>
+
+    <!-- PWA Install Banner -->
+    <div id="pwa-install-banner" class="pwa-install-banner">
+      <div>
+        <p style="color: white; font-weight: 600; margin: 0;">Установите QueenChat</p>
+        <p style="color: rgba(255,255,255,0.8); font-size: 12px; margin: 4px 0 0;">Быстрый доступ и уведомления</p>
+      </div>
+      <button id="pwa-install-btn">Установить</button>
+    </div>
+
+    <script>
+      (function() {
+        // PWA install
+        let deferredPrompt = null;
+        const banner = document.getElementById('pwa-install-banner');
+        const button = document.getElementById('pwa-install-btn');
+
+        window.addEventListener('beforeinstallprompt', (event) => {
+          event.preventDefault();
+          deferredPrompt = event;
+
+          setTimeout(() => {
+            if (banner) {
+              banner.classList.add('show');
+            }
+          }, 2000);
+        });
+
+        if (button) {
+          button.addEventListener('click', async () => {
+            if (!deferredPrompt) return;
+
+            deferredPrompt.prompt();
+            const result = await deferredPrompt.userChoice;
+            console.log('Install:', result.outcome);
+
+            deferredPrompt = null;
+
+            if (banner) {
+              banner.classList.remove('show');
+            }
+          });
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

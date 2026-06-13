@@ -55,3 +55,50 @@
 .light .text-white {
   color: #1e1b4b;
 }
+
+/* Стили для PWA баннера (перенесено из HTML) */
+.pwa-install-banner {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  background: linear-gradient(135deg, #7c3aed, #ec4899);
+  border-radius: 16px;
+  padding: 16px;
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 10000;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
+  animation: slideUp 0.5s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.pwa-install-banner.show {
+  display: flex;
+}
+
+.pwa-install-banner button {
+  background: white;
+  color: #7c3aed;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.pwa-install-banner button:hover {
+  transform: scale(1.05);
+}

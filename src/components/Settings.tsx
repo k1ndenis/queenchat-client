@@ -6,13 +6,72 @@ import LoadingScreen from './LoadingScreen';
 import Notifications from './Notifications';
 import { translations } from '../lib/locales';
 
+async function subscribeToPush() {
+  try {
+    const vapidResp = await fetch('/api/notifications/vapid-public-key');
+    const { publicKey } = await vapidResp.json();
+    
+    if (!publicKey) {
+      console.error('No VAPID public key');
+      return false;
+    }
+    
+    function urlBase64ToUint8Array(base64String: string) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+      }
+      return outputArray;
+    }
+    
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey)
+    });
+    
+    const response = await fetch('/api/notifications/push-subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(subscription)
+    });
+    
+    if (response.ok) {
+      console.log('Push subscription successful');
+      return true;
+    }
+  } catch (error) {
+    console.error('Push subscription failed:', error);
+  }
+  return false;
+}
+
+async function unsubscribeFromPush() {
+  try {
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+    if (subscription) {
+      await subscription.unsubscribe();
+      await fetch('/api/notifications/push-unsubscribe', { method: 'POST' });
+      console.log('Push unsubscribed');
+      return true;
+    }
+  } catch (error) {
+    console.error('Push unsubscribe failed:', error);
+  }
+  return false;
+}
+
 export default function Settings() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { user, language: reduxLanguage } = useAppSelector(state => state.user);
   const [loading, setLoading] = useState(true);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [selectedLanguage, setSelectedLanguage] = useState(reduxLanguage);
+  const [isPushSubscribed, setIsPushSubscribed] = useState(false);
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false,
     title: '',
@@ -34,17 +93,39 @@ export default function Settings() {
     const savedSettings = localStorage.getItem('queenchat_settings');
     if (savedSettings) {
       const settings = JSON.parse(savedSettings);
-      setNotificationsEnabled(settings.notificationsEnabled ?? true);
       if (settings.language) {
         setSelectedLanguage(settings.language);
       }
     }
+    
+    const checkPushSubscription = async () => {
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        try {
+          const registration = await navigator.serviceWorker.ready;
+          const subscription = await registration.pushManager.getSubscription();
+          setIsPushSubscribed(!!subscription);
+        } catch (error) {
+          console.error('Error checking subscription:', error);
+        }
+      }
+    };
+    checkPushSubscription();
+    
     setLoading(false);
   }, [user, navigate]);
 
+  const handleTogglePush = async () => {
+    if (isPushSubscribed) {
+      const success = await unsubscribeFromPush();
+      if (success) setIsPushSubscribed(false);
+    } else {
+      const success = await subscribeToPush();
+      if (success) setIsPushSubscribed(true);
+    }
+  };
+
   const saveSettings = () => {
     const settings = {
-      notificationsEnabled,
       language: selectedLanguage,
     };
     localStorage.setItem('queenchat_settings', JSON.stringify(settings));
@@ -78,7 +159,7 @@ export default function Settings() {
               <button
                 onClick={() => navigate('/chat')}
                 className="text-white hover:text-purple-300 transition-colors cursor-pointer p-2 rounded-lg hover:bg-white/10"
-                title="t.back"
+                title={t.back}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="19" y1="12" x2="5" y2="12"/>
@@ -101,25 +182,28 @@ export default function Settings() {
 
         <div className="max-w-2xl mx-auto px-6 py-12">
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
-            <h2 className="text-xl font-semibold text-white mb-6">{t.notificationSettings}</h2>
-            
+            <h2 className="text-xl font-semibold text-white mb-6">Настройки</h2>
             <div className="flex justify-between items-center py-3 border-b border-white/10">
               <div>
-                <p className="text-white font-medium">{t.pushNotifications}</p>
-                <p className="text-purple-300 text-sm">{t.pushDesc}</p>
+                <p className="text-white font-medium">Web Push уведомления</p>
+                <p className="text-purple-300 text-sm">Браузерные уведомления о новых сообщениях</p>
               </div>
               <button
-                onClick={() => setNotificationsEnabled(!notificationsEnabled)}
-                className={`w-12 h-6 rounded-full transition ${notificationsEnabled ? 'bg-purple-500' : 'bg-white/20'}`}
+                onClick={handleTogglePush}
+                className={`px-4 py-2 rounded-lg transition cursor-pointer ${
+                  isPushSubscribed 
+                    ? 'bg-green-500/20 text-green-400 border border-green-500/50' 
+                    : 'bg-purple-500 text-white hover:bg-purple-600'
+                }`}
               >
-                <div className={`w-5 h-5 rounded-full bg-white transition-transform ${notificationsEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                {isPushSubscribed ? '✅ Включены' : '🔔 Включить'}
               </button>
             </div>
 
             <div className="flex justify-between items-center py-3 border-b border-white/10">
               <div>
-                <p className="text-white font-medium">{t.language}</p>
-                <p className="text-purple-300 text-sm">{t.languageDesc}</p>
+                <p className="text-white font-medium">Язык</p>
+                <p className="text-purple-300 text-sm">Выберите язык интерфейса</p>
               </div>
               <select
                 value={selectedLanguage}
@@ -136,7 +220,7 @@ export default function Settings() {
                 onClick={saveSettings}
                 className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:opacity-90 transition cursor-pointer"
               >
-                {t.saveSettings}
+                Сохранить настройки
               </button>
             </div>
           </div>

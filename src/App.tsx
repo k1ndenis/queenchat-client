@@ -11,6 +11,10 @@ import Logo from './components/Logo';
 import Profile from './components/Profile';
 import Settings from './components/Settings';
 import UserProfile from './components/UserProfile';
+import {
+  requestFCMToken,
+  onFCMListener
+} from './lib/firebase';
 
 function Home() {
   const navigate = useNavigate();
@@ -65,6 +69,26 @@ function AppContent() {
       dispatch(fetchMe());
     }
   }, [dispatch]);
+
+  const fcmInitialized = useRef(false);
+
+  useEffect(() => {
+    const initFCM = async () => {
+      if (!user) return;
+      if (fcmInitialized.current) return;
+
+      fcmInitialized.current = true;
+
+      try {
+        await requestFCMToken();
+        onFCMListener();
+      } catch (e) {
+        console.error("FCM init error:", e);
+      }
+    };
+
+    initFCM();
+  }, [user]);
 
   if (loading) {
     return <LoadingScreen />;
