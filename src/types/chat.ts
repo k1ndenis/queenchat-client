@@ -9,7 +9,8 @@ export interface ChatParticipant {
 export interface Chat {
   id: string;
   name: string | null;
-  is_group: boolean;
+  avatar?: string | null;
+  chat_type: 'private' | 'group' | 'channel';
   participants: ChatParticipant[];
   created_by: string;
   created_at: number;
@@ -19,7 +20,8 @@ export interface Chat {
 export interface ChatInfo {
   id: string;
   name?: string;
-  is_group: boolean;
+  avatar?: string;
+  chat_type: 'private' | 'group' | 'channel';
   created_by: string;
   participants?: { 
     user_id: string; 
