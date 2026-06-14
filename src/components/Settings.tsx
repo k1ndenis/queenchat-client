@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAppSelector, useAppDispatch } from '../lib/redux/hooks';
 import { logout, setLanguage } from '../lib/redux/slices/userSlice';
 import LoadingScreen from './LoadingScreen';
-import Notifications from './Notifications';
 import { translations } from '../lib/locales';
 
 async function subscribeToPush() {
@@ -169,7 +168,6 @@ export default function Settings() {
               <h1 className="text-xl font-semibold text-white">{t.settings}</h1>
             </div>
             <div className="flex items-center gap-4">
-              <Notifications />
               <button
                 onClick={handleLogout}
                 className="px-4 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 hover:text-red-200 transition cursor-pointer"

@@ -5,7 +5,6 @@ import { fetchWithAuth } from '../lib/api';
 import { socket } from '../lib/socket';
 import StickerPicker from './StickerPicker';
 import LoadingScreen from './LoadingScreen';
-import Notifications from './Notifications';
 import { translations } from '../lib/locales';
 import type { Message } from '../types/message';
 import type { ChatInfo } from '../types/chat';
@@ -918,9 +917,6 @@ export default function ChatRoom() {
               )}
             </div>
             <div className="flex items-center gap-4">
-              <div className="relative z-50">
-                <Notifications />
-              </div>
               <UserMenu username={user?.username || ''} email={user?.email || ''} />
             </div>
           </div>

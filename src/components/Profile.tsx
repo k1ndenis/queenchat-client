@@ -4,7 +4,6 @@ import { useAppSelector, useAppDispatch } from '../lib/redux/hooks';
 import { logout, updateUser, updateAvatarVersion } from '../lib/redux/slices/userSlice';
 import { fetchWithAuth, bumpAvatarVersion, getCurrentAvatarVersion } from '../lib/api';
 import LoadingScreen from './LoadingScreen';
-import Notifications from './Notifications';
 import { translations } from '../lib/locales';
 import type { UserProfile } from '../types/user';
 
@@ -378,7 +377,6 @@ export default function Profile() {
               <h1 className="text-xl font-semibold text-white">{t.profile}</h1>
             </div>
             <div className="flex items-center gap-4">
-              <Notifications />
               <button
                 onClick={handleLogout}
                 className="px-4 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 hover:text-red-200 transition cursor-pointer"

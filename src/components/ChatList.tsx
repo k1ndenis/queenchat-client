@@ -5,10 +5,8 @@ import { socket } from '../lib/socket';
 import { useAppSelector } from '../lib/redux/hooks';
 import { translations } from '../lib/locales';
 import type { Chat } from '../types/chat';
-import type { User } from '../types/user';
 import type { LastMessage } from '../types/message';
 import LoadingScreen from './LoadingScreen';
-import Notifications from './Notifications';
 import UserMenu from './UserMenu';
 import Logo from './Logo';
 import Avatar from './Avatar';
@@ -296,9 +294,6 @@ export default function ChatList() {
               <h1 className="text-xl font-semibold text-white">QueenChat</h1>
             </div>
             <div className="flex items-center gap-4">
-              <div className="relative z-50">
-                <Notifications />
-              </div>
               <UserMenu username={user?.username || ''} email={user?.email || ''} />
             </div>
           </div>
@@ -372,7 +367,7 @@ export default function ChatList() {
                     onClick={() => navigate(`/chat/${chat.id}`)}
                   >
                     <div className="flex items-center gap-3">
-                      {/* Avatar с индикатором типа */}
+                      {/* Avatar */}
                       <div className="relative">
                         {isPrivate ? (
                           <Avatar 
@@ -432,7 +427,6 @@ export default function ChatList() {
                         <div className="flex justify-between items-baseline gap-2">
                           <div className="flex items-center gap-2 flex-wrap">
                             <div className="flex items-center gap-1.5">
-                              {/* Иконка типа чата */}
                               {isGroup && (
                                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2" className="flex-shrink-0">
                                   <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -452,33 +446,30 @@ export default function ChatList() {
                               </h3>
                             </div>
                             
-                            {/* Бейдж создателя */}
                             {isCreator && !isPrivate && (
                               <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full" title="Создатель">
                                 👑
                               </span>
                             )}
                             
-                            {/* Бейдж ADMIN */}
                             {isAdminUser && (
                               <span className="text-xs bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-1.5 py-0.5 rounded-full font-medium shadow-sm">
                                 ADMIN
                               </span>
                             )}
                             
-                            {/* Бейдж типа чата */}
                             {isGroup && (
                               <span className="text-xs bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">
                                 Беседа
                               </span>
                             )}
+                            
                             {isChannel && (
                               <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full">
                                 Канал
                               </span>
                             )}
                             
-                            {/* Количество участников */}
                             {showParticipantsCount && (
                               <span className="text-xs bg-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded-full">
                                 {isGroup ? `👥 ${chat.participants.length}` : `📢 ${chat.participants.length}`}
@@ -493,7 +484,6 @@ export default function ChatList() {
                           )}
                         </div>
                         
-                        {/* Preview последнего сообщения */}
                         <p className={`text-sm truncate ${unreadCount > 0 ? 'text-white font-medium' : 'text-purple-300'}`}>
                           {isChannel && !isOwn && (
                             <span className="text-yellow-400 mr-1">📢</span>
@@ -506,14 +496,13 @@ export default function ChatList() {
                         </p>
                       </div>
                       
-                      {/* Delete Button - только для создателя */}
-                      {isCreator && !isPrivate && (
+                      {(isPrivate || isCreator) && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setDeleteChatId(chat.id);
                           }}
-                          className="text-red-400/50 hover:text-red-400 transition-all duration-200 p-2 rounded-lg hover:bg-white/10 flex-shrink-0 opacity-0 group-hover:opacity-100"
+                          className="text-red-400/70 hover:text-red-400 transition-all duration-200 p-2 rounded-lg hover:bg-white/10 flex-shrink-0"
                           title={t.deleteChat || 'Удалить чат'}
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

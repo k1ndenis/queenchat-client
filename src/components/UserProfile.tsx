@@ -4,7 +4,6 @@ import { useAppSelector } from '../lib/redux/hooks';
 import { fetchWithAuth } from '../lib/api';
 import { translations } from '../lib/locales';
 import LoadingScreen from './LoadingScreen';
-import Notifications from './Notifications';
 import UserMenu from './UserMenu';
 import ImageViewer from './ImageViewer';
 import type { User } from '../types/user';
@@ -127,7 +126,6 @@ export default function UserProfile() {
                 <h1 className="text-xl font-semibold text-white">{t.userProfile || 'Профиль пользователя'}</h1>
               </div>
               <div className="flex items-center gap-4">
-                <Notifications />
                 <UserMenu username={currentUser?.username || ''} email={currentUser?.email || ''} />
               </div>
             </div>
@@ -172,7 +170,6 @@ export default function UserProfile() {
               </h1>
             </div>
             <div className="flex items-center gap-4">
-              <Notifications />
               <UserMenu username={currentUser?.username || ''} email={currentUser?.email || ''} />
             </div>
           </div>
