@@ -39,6 +39,7 @@ export default function ChatRoom() {
   const [searchQuery, setSearchQuery] = useState('');
   const [addingUsers, setAddingUsers] = useState(false);
   const [removeConfirm, setRemoveConfirm] = useState<{ userId: string; username: string } | null>(null);
+  const [leaveConfirm, setLeaveConfirm] = useState(false);
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false,
     title: '',
@@ -66,7 +67,6 @@ export default function ChatRoom() {
 
   const canManageParticipants = () => {
     if (!chat || !user) return false;
-    // Создатель может управлять участниками в группах и подписчиками в каналах
     if (chat.chat_type === 'group' || chat.chat_type === 'channel') {
       return chat.created_by === user.id;
     }
@@ -374,6 +374,38 @@ export default function ChatRoom() {
     }
   };
 
+  const leaveChat = async () => {
+    setLeaveConfirm(false);
+    
+    try {
+      let response;
+      if (isChannel) {
+        response = await fetchWithAuth(`${apiUrl}/chats/${id}/unsubscribe`, {
+          method: 'POST',
+        });
+      } else {
+        response = await fetchWithAuth(`${apiUrl}/chats/${id}/participants/${user!.id}`, {
+          method: 'DELETE',
+        });
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to leave');
+      }
+      
+      navigate('/chat');
+      window.dispatchEvent(new Event('refreshChatList'));
+    } catch (error) {
+      console.error('Error leaving chat:', error);
+      setModal({
+        isOpen: true,
+        title: 'Ошибка',
+        message: error instanceof Error ? error.message : 'Не удалось покинуть чат',
+      });
+    }
+  };
+
   const handleImagesUploaded = async (urls: string[]) => {
     if (!canSendMessages()) {
       setModal({
@@ -520,9 +552,6 @@ export default function ChatRoom() {
       try {
         await fetchWithAuth(`${apiUrl}/chats/${id}/messages/read/all`, {
           method: 'POST',
-        });
-        await fetchWithAuth(`${apiUrl}/notifications/read/by-chat/${id}`, {
-          method: 'PATCH',
         });
         setMessages(prev =>
           prev.map(msg => {
@@ -847,19 +876,23 @@ export default function ChatRoom() {
                     />
                   </div>
                   
-                  <div 
-                    onClick={() => setParticipantsModal(true)}
-                    className="cursor-pointer hover:opacity-80 transition-opacity"
-                  >
-                    <div className="flex items-center gap-2">
-                      <h1 className="text-xl font-semibold text-white">{chatName}</h1>
-                      {isCreator && (
-                        <span className="text-yellow-400/80 text-sm" title="Вы создатель">👑</span>
-                      )}
+                  <div className="flex-1 min-w-0">
+                    <div 
+                      onClick={() => setParticipantsModal(true)}
+                      className="cursor-pointer hover:opacity-80 transition-opacity"
+                    >
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h1 className="text-xl font-semibold text-white break-words">
+                          {chatName}
+                        </h1>
+                        {isCreator && (
+                          <span className="text-yellow-400/80 text-sm" title="Вы создатель">👑</span>
+                        )}
+                      </div>
+                      <p className="text-xs text-purple-300">
+                        {isGroup ? `${chat.participants?.length || 0} участников` : `${chat.participants?.length || 0} подписчиков`}
+                      </p>
                     </div>
-                    <p className="text-xs text-purple-300">
-                      {isGroup ? `${chat.participants?.length || 0} участников` : `${chat.participants?.length || 0} подписчиков`}
-                    </p>
                   </div>
                   
                   {isCreator && (isGroup || isChannel) && (
@@ -887,6 +920,20 @@ export default function ChatRoom() {
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M12 5v14M5 12h14"/>
+                      </svg>
+                    </button>
+                  )}
+                  
+                  {!isCreator && (isGroup || isChannel) && (
+                    <button
+                      onClick={() => setLeaveConfirm(true)}
+                      className="text-red-400/70 hover:text-red-400 transition p-1 rounded-lg hover:bg-white/10"
+                      title={isGroup ? "Покинуть беседу" : "Отписаться от канала"}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <polyline points="16 17 21 12 16 7"/>
+                        <line x1="21" y1="12" x2="9" y2="12"/>
                       </svg>
                     </button>
                   )}
@@ -1166,6 +1213,7 @@ export default function ChatRoom() {
         )}
       </div>
 
+      {/* Модалка участников/подписчиков */}
       {participantsModal && chat && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-gradient-to-br from-slate-800 to-purple-900 rounded-2xl p-6 w-full max-w-md mx-4 max-h-[80vh] overflow-y-auto">
@@ -1246,6 +1294,7 @@ export default function ChatRoom() {
         </div>
       )}
 
+      {/* Модалка подтверждения удаления участника */}
       {removeConfirm && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-gradient-to-br from-slate-800 to-red-900 rounded-2xl p-6 w-full max-w-md mx-4">
@@ -1284,6 +1333,46 @@ export default function ChatRoom() {
         </div>
       )}
 
+      {/* Модалка подтверждения выхода из чата */}
+      {leaveConfirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gradient-to-br from-slate-800 to-red-900 rounded-2xl p-6 w-full max-w-md mx-4">
+            <div className="text-center mb-4">
+              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="red" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">
+                {isGroup ? 'Покинуть беседу' : 'Отписаться от канала'}
+              </h2>
+              <p className="text-purple-200">
+                Вы уверены, что хотите {isGroup ? 'покинуть беседу' : 'отписаться от канала'}?
+                {isGroup && ' Все сообщения останутся, но вы не сможете их просматривать.'}
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={leaveChat}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition cursor-pointer"
+              >
+                {isGroup ? 'Покинуть' : 'Отписаться'}
+              </button>
+              <button
+                onClick={() => setLeaveConfirm(false)}
+                className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition cursor-pointer"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Модалка добавления участников (только для групп) */}
       {showAddParticipants && isGroup && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-gradient-to-br from-slate-800 to-purple-900 rounded-2xl p-6 w-full max-w-md mx-4 max-h-[80vh] overflow-y-auto">
@@ -1346,6 +1435,7 @@ export default function ChatRoom() {
         </div>
       )}
 
+      {/* Модалка редактирования чата */}
       {isEditingChat && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-gradient-to-br from-slate-800 to-purple-900 rounded-2xl p-6 w-full max-w-md mx-auto">
@@ -1430,6 +1520,7 @@ export default function ChatRoom() {
         </div>
       )}
 
+      {/* Просмотр аватара в полный размер */}
       {avatarViewer && (
         <ImageViewer
           images={[avatarViewer]}

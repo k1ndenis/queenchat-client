@@ -34,7 +34,7 @@ export default function Profile() {
   const t = translations[language as keyof typeof translations];
   const isMounted = useRef(true);
 
-  const ADMIN_ID = 'd5540754-2973-4be5-aa6a-249b50fe2748';
+  const ADMIN_ID = '82a18fba-e6b8-4eb8-a77a-2311bcd19f16';
   const isAdmin = user?.id === ADMIN_ID;
 
   useEffect(() => {

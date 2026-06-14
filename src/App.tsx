@@ -11,6 +11,7 @@ import Logo from './components/Logo';
 import Profile from './components/Profile';
 import Settings from './components/Settings';
 import UserProfile from './components/UserProfile';
+import ForgotPassword from './components/ForgotPassword';
 import {
   requestFCMToken,
   onFCMListener
@@ -94,14 +95,17 @@ function AppContent() {
     return <LoadingScreen />;
   }
 
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
-  const isHomePage = location.pathname === '/';
+  // Добавляем forgot-password в список публичных страниц
+  const isPublicPage = location.pathname === '/' || 
+                       location.pathname === '/login' || 
+                       location.pathname === '/register' ||
+                       location.pathname === '/forgot-password';  // ← добавляем сюда
   
-  if (!user && !isAuthPage && !isHomePage) {
+  if (!user && !isPublicPage) {
     return <Navigate to="/login" replace />;
   }
 
-  if (user && (isAuthPage || isHomePage)) {
+  if (user && (location.pathname === '/' || location.pathname === '/login' || location.pathname === '/register')) {
     return <Navigate to="/chat" replace />;
   }
 
@@ -110,6 +114,7 @@ function AppContent() {
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/chat" element={<ChatList />} />
       <Route path="/chat/:id" element={<ChatRoom />} />
       <Route path="/profile" element={<Profile />} />

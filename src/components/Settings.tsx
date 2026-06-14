@@ -5,72 +5,12 @@ import { logout, setLanguage } from '../lib/redux/slices/userSlice';
 import LoadingScreen from './LoadingScreen';
 import { translations } from '../lib/locales';
 
-async function subscribeToPush() {
-  try {
-    const vapidResp = await fetch('/api/notifications/vapid-public-key');
-    const { publicKey } = await vapidResp.json();
-    
-    if (!publicKey) {
-      console.error('No VAPID public key');
-      return false;
-    }
-    
-    function urlBase64ToUint8Array(base64String: string) {
-      const padding = '='.repeat((4 - base64String.length % 4) % 4);
-      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-      const rawData = window.atob(base64);
-      const outputArray = new Uint8Array(rawData.length);
-      for (let i = 0; i < rawData.length; ++i) {
-        outputArray[i] = rawData.charCodeAt(i);
-      }
-      return outputArray;
-    }
-    
-    const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey)
-    });
-    
-    const response = await fetch('/api/notifications/push-subscribe', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(subscription)
-    });
-    
-    if (response.ok) {
-      console.log('Push subscription successful');
-      return true;
-    }
-  } catch (error) {
-    console.error('Push subscription failed:', error);
-  }
-  return false;
-}
-
-async function unsubscribeFromPush() {
-  try {
-    const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.getSubscription();
-    if (subscription) {
-      await subscription.unsubscribe();
-      await fetch('/api/notifications/push-unsubscribe', { method: 'POST' });
-      console.log('Push unsubscribed');
-      return true;
-    }
-  } catch (error) {
-    console.error('Push unsubscribe failed:', error);
-  }
-  return false;
-}
-
 export default function Settings() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const { user, language: reduxLanguage } = useAppSelector(state => state.user);
   const [loading, setLoading] = useState(true);
   const [selectedLanguage, setSelectedLanguage] = useState(reduxLanguage);
-  const [isPushSubscribed, setIsPushSubscribed] = useState(false);
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false,
     title: '',
@@ -97,31 +37,8 @@ export default function Settings() {
       }
     }
     
-    const checkPushSubscription = async () => {
-      if ('serviceWorker' in navigator && 'PushManager' in window) {
-        try {
-          const registration = await navigator.serviceWorker.ready;
-          const subscription = await registration.pushManager.getSubscription();
-          setIsPushSubscribed(!!subscription);
-        } catch (error) {
-          console.error('Error checking subscription:', error);
-        }
-      }
-    };
-    checkPushSubscription();
-    
     setLoading(false);
   }, [user, navigate]);
-
-  const handleTogglePush = async () => {
-    if (isPushSubscribed) {
-      const success = await unsubscribeFromPush();
-      if (success) setIsPushSubscribed(false);
-    } else {
-      const success = await subscribeToPush();
-      if (success) setIsPushSubscribed(true);
-    }
-  };
 
   const saveSettings = () => {
     const settings = {
@@ -180,27 +97,12 @@ export default function Settings() {
 
         <div className="max-w-2xl mx-auto px-6 py-12">
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
-            <h2 className="text-xl font-semibold text-white mb-6">Настройки</h2>
-            <div className="flex justify-between items-center py-3 border-b border-white/10">
-              <div>
-                <p className="text-white font-medium">Web Push уведомления</p>
-                <p className="text-purple-300 text-sm">Браузерные уведомления о новых сообщениях</p>
-              </div>
-              <button
-                onClick={handleTogglePush}
-                className={`px-4 py-2 rounded-lg transition cursor-pointer ${
-                  isPushSubscribed 
-                    ? 'bg-green-500/20 text-green-400 border border-green-500/50' 
-                    : 'bg-purple-500 text-white hover:bg-purple-600'
-                }`}
-              >
-                {isPushSubscribed ? '✅ Включены' : '🔔 Включить'}
-              </button>
-            </div>
+            <h2 className="text-xl font-semibold text-white mb-6">{t.settings}</h2>
 
+            {/* Language Settings */}
             <div className="flex justify-between items-center py-3 border-b border-white/10">
               <div>
-                <p className="text-white font-medium">Язык</p>
+                <p className="text-white font-medium">{t.language}</p>
                 <p className="text-purple-300 text-sm">Выберите язык интерфейса</p>
               </div>
               <select
@@ -218,7 +120,7 @@ export default function Settings() {
                 onClick={saveSettings}
                 className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl hover:opacity-90 transition cursor-pointer"
               >
-                Сохранить настройки
+                {t.saveSettings}
               </button>
             </div>
           </div>

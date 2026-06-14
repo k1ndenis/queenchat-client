@@ -4,13 +4,18 @@ import { useAppDispatch, useAppSelector } from '../lib/redux/hooks';
 import { setUser, fetchMe } from '../lib/redux/slices/userSlice';
 import { fetchWithAuth } from '../lib/api';
 import Logo from './Logo';
+import PhoneInput from './PhoneInput';
+import Captcha from './Captcha';
 import { translations } from '../lib/locales';
 
 export default function Login() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false,
     title: '',
@@ -26,12 +31,30 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!phone || !password) return;
+    
+    // Если уже были неудачные попытки, проверяем капчу
+    if (failedAttempts >= 1 && !captchaToken) {
+      setModal({
+        isOpen: true,
+        title: 'Ошибка',
+        message: 'Подтвердите, что вы не робот',
+      });
+      return;
+    }
+    
+    setLoading(true);
     const apiUrl = import.meta.env.VITE_API_URL;
 
     try {
+      const body: any = { phone, password };
+      if (failedAttempts >= 1) {
+        body.captcha_token = captchaToken;
+      }
+      
       const response = await fetchWithAuth(`${apiUrl}/auth/login`, {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(body),
       });
       
       const data = await response.json();
@@ -41,19 +64,24 @@ export default function Login() {
         await dispatch(fetchMe());
         navigate('/chat');
       } else {
+        setFailedAttempts(prev => prev + 1);
+        setCaptchaToken(''); // Сбросить капчу при ошибке
         setModal({
           isOpen: true,
-          title: t.loginError,
-          message: data.error || t.invalidCredentials,
+          title: 'Ошибка входа',
+          message: data.detail || 'Неверный телефон или пароль',
         });
       }
     } catch (error) {
       console.error('Login error:', error);
+      setFailedAttempts(prev => prev + 1);
       setModal({
         isOpen: true,
         title: t.connectionError,
         message: t.connectionErrorMessage,
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -66,20 +94,14 @@ export default function Login() {
               <Logo variant="full" />
             </div>
             <h1 className="text-3xl font-bold text-white">{t.welcome}</h1>
-            <p className="text-purple-200 mt-2">{t.loginToAccount}</p>
+            <p className="text-purple-200 mt-2">Введите телефон и пароль</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <input
-                type="email"
-                placeholder={t.email}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all duration-300"
-              />
-            </div>
+            <PhoneInput
+              value={phone}
+              onChange={setPhone}
+            />
             <div>
               <input
                 type="password"
@@ -90,13 +112,33 @@ export default function Login() {
                 className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all duration-300"
               />
             </div>
+            
+            {/* Показываем капчу только после неудачных попыток */}
+            {failedAttempts >= 1 && (
+              <Captcha
+                onVerify={setCaptchaToken}
+                onExpire={() => setCaptchaToken('')}
+              />
+            )}
+            
             <button
               type="submit"
-              className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-purple-500/25 transition-all duration-300 hover:scale-[1.02] cursor-pointer"
+              disabled={loading || !phone || !password || (failedAttempts >= 1 && !captchaToken)}
+              className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-purple-500/25 transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 cursor-pointer"
             >
-              {t.login}
+              {loading ? 'Вход...' : t.login}
             </button>
           </form>
+
+          <div className="text-center mt-4">
+            <button
+              onClick={() => navigate('/forgot-password')}
+              className="text-purple-300 hover:text-white transition-colors duration-300 text-sm cursor-pointer"
+            >
+              Забыли пароль?
+            </button>
+          </div>
+
           <div className="text-center mt-6">
             <button
               onClick={() => navigate('/register')}

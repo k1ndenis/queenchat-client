@@ -21,14 +21,15 @@ export default function ChatList() {
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [deleteChatId, setDeleteChatId] = useState<string | null>(null);
+  const [actionChatId, setActionChatId] = useState<string | null>(null);
+  const [actionType, setActionType] = useState<'delete' | 'leave' | 'unsubscribe' | null>(null);
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false,
     title: '',
     message: '',
   });
 
-  const ADMIN_ID = 'd5540754-2973-4be5-aa6a-249b50fe2748';
+  const ADMIN_ID = '82a18fba-e6b8-4eb8-a77a-2311bcd19f16';
 
   const closeModal = () => {
     setModal({ isOpen: false, title: '', message: '' });
@@ -227,28 +228,30 @@ export default function ChatList() {
     window.dispatchEvent(new Event('refreshChatList'));
   };
 
-  const handleDeleteChat = async () => {
-    if (!deleteChatId) return;
-    
+  const handleDeleteChat = async (chatId: string) => {
     try {
-      const response = await fetchWithAuth(`/chats/${deleteChatId}`, {
+      const response = await fetchWithAuth(`/chats/${chatId}`, {
         method: 'DELETE'
       });
       
       if (response.ok) {
-        setChats(prev => prev.filter(chat => chat.id !== deleteChatId));
+        setChats(prev => prev.filter(chat => chat.id !== chatId));
         setLastMessages(prev => {
           const newMap = new Map(prev);
-          newMap.delete(deleteChatId);
+          newMap.delete(chatId);
           return newMap;
         });
         setUnreadCounts(prev => {
           const newMap = new Map(prev);
-          newMap.delete(deleteChatId);
+          newMap.delete(chatId);
           return newMap;
         });
         
-        setDeleteChatId(null);
+        setModal({
+          isOpen: true,
+          title: 'Успешно',
+          message: 'Чат удален',
+        });
       } else {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.detail || 'Не удалось удалить чат');
@@ -260,8 +263,227 @@ export default function ChatList() {
         title: t.error || 'Ошибка',
         message: error instanceof Error ? error.message : (t.failedToDeleteChat || 'Не удалось удалить чат'),
       });
-      setDeleteChatId(null);
+    } finally {
+      setActionChatId(null);
+      setActionType(null);
     }
+  };
+
+  const handleLeaveGroup = async (chatId: string) => {
+    try {
+      const response = await fetchWithAuth(`/chats/${chatId}/participants/${user!.id}`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        setChats(prev => prev.filter(chat => chat.id !== chatId));
+        setLastMessages(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(chatId);
+          return newMap;
+        });
+        setUnreadCounts(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(chatId);
+          return newMap;
+        });
+        
+        setModal({
+          isOpen: true,
+          title: 'Успешно',
+          message: 'Вы покинули беседу',
+        });
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Не удалось покинуть беседу');
+      }
+    } catch (error) {
+      console.error('Ошибка при выходе из беседы:', error);
+      setModal({
+        isOpen: true,
+        title: t.error || 'Ошибка',
+        message: error instanceof Error ? error.message : 'Не удалось покинуть беседу',
+      });
+    } finally {
+      setActionChatId(null);
+      setActionType(null);
+    }
+  };
+
+  const handleUnsubscribeFromChannel = async (chatId: string) => {
+    try {
+      const response = await fetchWithAuth(`/chats/${chatId}/unsubscribe`, {
+        method: 'POST',
+      });
+      
+      if (response.ok) {
+        setChats(prev => prev.filter(chat => chat.id !== chatId));
+        setLastMessages(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(chatId);
+          return newMap;
+        });
+        setUnreadCounts(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(chatId);
+          return newMap;
+        });
+        
+        setModal({
+          isOpen: true,
+          title: 'Успешно',
+          message: 'Вы отписались от канала',
+        });
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Не удалось отписаться от канала');
+      }
+    } catch (error) {
+      console.error('Ошибка при отписке от канала:', error);
+      setModal({
+        isOpen: true,
+        title: t.error || 'Ошибка',
+        message: error instanceof Error ? error.message : 'Не удалось отписаться от канала',
+      });
+    } finally {
+      setActionChatId(null);
+      setActionType(null);
+    }
+  };
+
+  const handleAction = () => {
+    if (!actionChatId) return;
+    
+    if (actionType === 'delete') {
+      handleDeleteChat(actionChatId);
+    } else if (actionType === 'leave') {
+      handleLeaveGroup(actionChatId);
+    } else if (actionType === 'unsubscribe') {
+      handleUnsubscribeFromChannel(actionChatId);
+    }
+  };
+
+  const getActionButton = (chat: Chat) => {
+    const chatType = chat.chat_type || 'private';
+    const isPrivate = chatType === 'private';
+    const isGroup = chatType === 'group';
+    const isChannel = chatType === 'channel';
+    const isCreator = chat.created_by === user?.id;
+    const isAdmin = user?.username === 'admin';
+    
+    if (isPrivate) {
+      return {
+        show: true,
+        action: 'delete' as 'delete',
+        title: 'Удалить чат',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+        )
+      };
+    }
+    
+    if (isChannel) {
+      if (isAdmin) {
+        return {
+          show: true,
+          action: 'delete' as 'delete',
+          title: 'Удалить канал',
+          icon: (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          )
+        };
+      }
+      if (isCreator) {
+        return {
+          show: true,
+          action: 'delete' as 'delete',
+          title: 'Удалить канал',
+          icon: (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          )
+        };
+      }
+      return {
+        show: true,
+        action: 'unsubscribe' as 'unsubscribe',
+        title: 'Отписаться от канала',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 11H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
+          </svg>
+        )
+      };
+    }
+    
+    if (isGroup) {
+      if (isAdmin) {
+        return {
+          show: true,
+          action: 'delete' as 'delete',
+          title: 'Удалить беседу',
+          icon: (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          )
+        };
+      }
+      if (isCreator) {
+        return {
+          show: true,
+          action: 'delete' as 'delete',
+          title: 'Удалить беседу',
+          icon: (
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+          )
+        };
+      }
+      return {
+        show: true,
+        action: 'leave' as 'leave',
+        title: 'Покинуть беседу',
+        icon: (
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 11H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
+          </svg>
+        )
+      };
+    }
+    
+    return { show: false, action: null, title: '', icon: null };
+  };
+
+  const getActionModalContent = () => {
+    if (actionType === 'delete') {
+      return {
+        title: 'Удалить чат',
+        message: 'Вы уверены, что хотите удалить этот чат? Все сообщения будут потеряны.',
+        buttonText: 'Удалить'
+      };
+    }
+    if (actionType === 'leave') {
+      return {
+        title: 'Покинуть беседу',
+        message: 'Вы уверены, что хотите покинуть беседу? Вы не сможете просматривать сообщения.',
+        buttonText: 'Покинуть'
+      };
+    }
+    if (actionType === 'unsubscribe') {
+      return {
+        title: 'Отписаться от канала',
+        message: 'Вы уверены, что хотите отписаться от канала?',
+        buttonText: 'Отписаться'
+      };
+    }
+    return { title: '', message: '', buttonText: '' };
   };
 
   const formatTime = (timestamp: number) => {
@@ -282,6 +504,8 @@ export default function ChatList() {
   if (loading) {
     return <LoadingScreen />;
   }
+
+  const modalContent = getActionModalContent();
 
   return (
     <>
@@ -352,6 +576,12 @@ export default function ChatList() {
                 const unreadCount = unreadCounts.get(chat.id) || 0;
                 const showParticipantsCount = !isPrivate && chat.participants?.length;
                 
+                const actionButton = getActionButton(chat);
+                
+                // Для отображения отправителя в группах
+                const showSender = isGroup && lastMsg && !isOwn;
+                const senderName = showSender ? lastMsg.sender_name || 'Пользователь' : '';
+                
                 return (
                   <div
                     key={chat.id}
@@ -368,7 +598,7 @@ export default function ChatList() {
                   >
                     <div className="flex items-center gap-3">
                       {/* Avatar */}
-                      <div className="relative">
+                      <div className="relative flex-shrink-0">
                         {isPrivate ? (
                           <Avatar 
                             userId={otherUser?.user_id}
@@ -424,90 +654,87 @@ export default function ChatList() {
                       
                       {/* Chat Info */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-baseline gap-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <div className="flex items-center gap-1.5">
-                              {isGroup && (
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2" className="flex-shrink-0">
-                                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                                  <circle cx="9" cy="7" r="4"/>
-                                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                                  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                                </svg>
-                              )}
-                              {isChannel && (
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2" className="flex-shrink-0">
-                                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                                  <polyline points="22,6 12,13 2,6"/>
-                                </svg>
-                              )}
-                              <h3 className={`font-semibold truncate ${unreadCount > 0 ? 'text-white' : 'text-white/80'}`}>
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex flex-col min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {/* Иконка типа чата - только на мобилках, на десктопе можно убрать или оставить */}
+                              <div className="hidden sm:flex items-center gap-1.5">
+                                {isGroup && (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2" className="flex-shrink-0">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                  </svg>
+                                )}
+                                {isChannel && (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2" className="flex-shrink-0">
+                                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                                    <polyline points="22,6 12,13 2,6"/>
+                                  </svg>
+                                )}
+                              </div>
+                              <h3 className={`font-semibold break-words text-base sm:text-lg ${unreadCount > 0 ? 'text-white' : 'text-white/80'}`}>
                                 {displayName}
                               </h3>
                             </div>
                             
-                            {isCreator && !isPrivate && (
-                              <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full" title="Создатель">
-                                👑
-                              </span>
-                            )}
-                            
-                            {isAdminUser && (
-                              <span className="text-xs bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-1.5 py-0.5 rounded-full font-medium shadow-sm">
-                                ADMIN
-                              </span>
-                            )}
-                            
-                            {isGroup && (
-                              <span className="text-xs bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">
-                                Беседа
-                              </span>
-                            )}
-                            
-                            {isChannel && (
-                              <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full">
-                                Канал
-                              </span>
-                            )}
-                            
-                            {showParticipantsCount && (
-                              <span className="text-xs bg-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded-full">
-                                {isGroup ? `👥 ${chat.participants.length}` : `📢 ${chat.participants.length}`}
-                              </span>
-                            )}
+                            {/* Бейджи */}
+                            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                              {isCreator && !isPrivate && (
+                                <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full" title="Создатель">👑</span>
+                              )}
+                              {isAdminUser && (
+                                <span className="text-xs bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-1.5 py-0.5 rounded-full font-medium shadow-sm">ADMIN</span>
+                              )}
+                              {isGroup && (
+                                <span className="text-xs bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">Беседа</span>
+                              )}
+                              {isChannel && (
+                                <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full">Канал</span>
+                              )}
+                              {showParticipantsCount && (
+                                <span className="text-xs bg-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded-full">
+                                  {isGroup ? `👥 ${chat.participants.length}` : `📢 ${chat.participants.length}`}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           
                           {lastMsg && (
-                            <span className={`text-xs flex-shrink-0 ${unreadCount > 0 ? 'text-purple-300' : 'text-purple-400/60'}`}>
+                            <span className={`text-xs flex-shrink-0 whitespace-nowrap ${unreadCount > 0 ? 'text-purple-300' : 'text-purple-400/60'}`}>
                               {formatTime(lastMsg.created_at)}
                             </span>
                           )}
                         </div>
                         
-                        <p className={`text-sm truncate ${unreadCount > 0 ? 'text-white font-medium' : 'text-purple-300'}`}>
+                        {/* Preview последнего сообщения с отправителем */}
+                        <p className={`text-sm truncate mt-1 ${unreadCount > 0 ? 'text-white font-medium' : 'text-purple-300'}`}>
                           {isChannel && !isOwn && (
                             <span className="text-yellow-400 mr-1">📢</span>
                           )}
-                          {isGroup && !isOwn && (
-                            <span className="text-green-400 mr-1">👥</span>
+                          {showSender && (
+                            <span className="text-purple-400 mr-1">
+                              {senderName}: 
+                            </span>
                           )}
                           {isOwn && <span className="text-purple-400 mr-1">{t.you || 'Вы'}: </span>}
                           {msgPreview}
                         </p>
                       </div>
                       
-                      {(isPrivate || isCreator) && (
+                      {/* Action Button */}
+                      {actionButton.show && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setDeleteChatId(chat.id);
+                            setActionChatId(chat.id);
+                            setActionType(actionButton.action);
                           }}
                           className="text-red-400/70 hover:text-red-400 transition-all duration-200 p-2 rounded-lg hover:bg-white/10 flex-shrink-0"
-                          title={t.deleteChat || 'Удалить чат'}
+                          title={actionButton.title}
                         >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                          </svg>
+                          {actionButton.icon}
                         </button>
                       )}
                     </div>
@@ -526,8 +753,8 @@ export default function ChatList() {
         onChatCreated={handleChatCreated}
       />
 
-      {/* Delete Chat Confirmation Modal */}
-      {deleteChatId && (
+      {/* Action Confirmation Modal */}
+      {actionChatId && actionType && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-gradient-to-br from-slate-800 to-red-900 rounded-2xl p-6 w-full max-w-md mx-4">
             <div className="text-center mb-4">
@@ -538,22 +765,25 @@ export default function ChatList() {
                   <line x1="12" y1="16" x2="12.01" y2="16"/>
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold text-white mb-2">{t.deleteChat || 'Удалить чат'}</h2>
-              <p className="text-purple-200">{t.deleteChatWarning || 'Вы уверены, что хотите удалить этот чат? Все сообщения будут потеряны.'}</p>
+              <h2 className="text-2xl font-bold text-white mb-2">{modalContent.title}</h2>
+              <p className="text-purple-200">{modalContent.message}</p>
             </div>
             
             <div className="flex gap-3">
               <button
-                onClick={handleDeleteChat}
+                onClick={handleAction}
                 className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition cursor-pointer"
               >
-                {t.delete || 'Удалить'}
+                {modalContent.buttonText}
               </button>
               <button
-                onClick={() => setDeleteChatId(null)}
+                onClick={() => {
+                  setActionChatId(null);
+                  setActionType(null);
+                }}
                 className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition cursor-pointer"
               >
-                {t.cancel || 'Отмена'}
+                Отмена
               </button>
             </div>
           </div>
@@ -565,8 +795,18 @@ export default function ChatList() {
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-gradient-to-br from-slate-800 to-purple-900 rounded-2xl p-6 w-full max-w-md mx-4">
             <div className="text-center mb-4">
-              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="text-3xl">⚠️</span>
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 ${
+                modal.title === 'Успешно' 
+                  ? 'bg-green-500/20' 
+                  : 'bg-red-500/20'
+              }`}>
+                {modal.title === 'Успешно' ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="green" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 6L9 17l-5-5"/>
+                  </svg>
+                ) : (
+                  <span className="text-3xl">⚠️</span>
+                )}
               </div>
               <h2 className="text-2xl font-bold text-white">{modal.title}</h2>
               <p className="text-purple-200 mt-2">{modal.message}</p>

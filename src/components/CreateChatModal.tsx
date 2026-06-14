@@ -30,7 +30,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const ADMIN_ID = 'd5540754-2973-4be5-aa6a-249b50fe2748';
+  const ADMIN_ID = '82a18fba-e6b8-4eb8-a77a-2311bcd19f16';
 
   useEffect(() => {
     if (!isOpen) return;
