@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">QueenChat</string>
+    <string name="title_activity_main">QueenChat</string>
+    <string name="package_name">ru.queenchat.app</string>
+    <string name="custom_url_scheme">ru.queenchat.app</string>
+</resources>

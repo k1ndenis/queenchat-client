@@ -1,6 +1,7 @@
 export interface ChatParticipant {
   user_id: string;
   username: string;
+  display_name?: string | null;
   email: string;
   avatar?: string;
   joined_at: number;
@@ -15,6 +16,9 @@ export interface Chat {
   created_by: string;
   created_at: number;
   updated_at: number;
+  unread_count?: number;
+  has_unread_reactions?: boolean;
+  unread_reactions_count?: number;
 }
 
 export interface ChatInfo {
@@ -26,6 +30,7 @@ export interface ChatInfo {
   participants?: { 
     user_id: string; 
     username: string;
+    display_name?: string | null;
     avatar?: string;
   }[];
 }

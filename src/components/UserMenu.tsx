@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../lib/redux/hooks';
 import { logout } from '../lib/redux/slices/userSlice';
 import { translations } from '../lib/locales';
+import { removeFCMToken } from '../lib/firebase';
+import { clearUserCache } from '../lib/cache';
+import { shareQueenChat } from '../lib/share';
 
 interface UserMenuProps {
   username: string;
@@ -13,12 +16,13 @@ export default function UserMenu({ username, email }: UserMenuProps) {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const [isOpen, setIsOpen] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const buttonRef = useRef<HTMLDivElement>(null);
   const language = useAppSelector(state => state.user.language);
   const { user } = useAppSelector(state => state.user);
   const t = translations[language as keyof typeof translations];
   
-  const ADMIN_ID = '82a18fba-e6b8-4eb8-a77a-2311bcd19f16';
+  const ADMIN_ID = '33f676d7-9ab6-4eaa-b3c4-d4552b499f58';
   const isAdmin = user?.id === ADMIN_ID;
 
   useEffect(() => {
@@ -32,11 +36,22 @@ export default function UserMenu({ username, email }: UserMenuProps) {
     return () => document.removeEventListener('click', handleClickOutside);
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await removeFCMToken();
+    if (user) await clearUserCache(user.id);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     dispatch(logout());
     navigate('/login');
+  };
+
+  const handleShare = async () => {
+    setIsOpen(false);
+    const result = await shareQueenChat(language as 'ru' | 'en');
+    if (result === 'copied') {
+      setShareCopied(true);
+      window.setTimeout(() => setShareCopied(false), 3000);
+    }
   };
 
   const menuContent = (
@@ -56,7 +71,7 @@ export default function UserMenu({ username, email }: UserMenuProps) {
             <p className="text-white font-semibold truncate">{username}</p>
             {isAdmin && (
               <span className="text-xs bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
-                ADMIN
+                {t.admin}
               </span>
             )}
           </div>
@@ -75,7 +90,7 @@ export default function UserMenu({ username, email }: UserMenuProps) {
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
             <circle cx="12" cy="7" r="4"/>
           </svg>
-          {t.profile || 'Профиль'}
+          {t.profile}
         </button>
         <button
           onClick={() => {
@@ -88,7 +103,20 @@ export default function UserMenu({ username, email }: UserMenuProps) {
             <circle cx="12" cy="12" r="3"/>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
-          {t.settings || 'Настройки'}
+          {t.settings}
+        </button>
+        <button
+          onClick={() => void handleShare()}
+          className="w-full px-4 py-2.5 text-left text-purple-200 hover:bg-white/10 transition flex items-center gap-3"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="18" cy="5" r="3"/>
+            <circle cx="6" cy="12" r="3"/>
+            <circle cx="18" cy="19" r="3"/>
+            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          </svg>
+          {t.inviteFriends}
         </button>
       </div>
       <div className="border-t border-white/10 py-2">
@@ -101,7 +129,7 @@ export default function UserMenu({ username, email }: UserMenuProps) {
             <polyline points="16 17 21 12 16 7"/>
             <line x1="21" y1="12" x2="9" y2="12"/>
           </svg>
-          {t.logout || 'Выйти'}
+          {t.logout}
         </button>
       </div>
     </div>
@@ -127,6 +155,11 @@ export default function UserMenu({ username, email }: UserMenuProps) {
           className="absolute right-0 top-12 bg-slate-800 rounded-xl shadow-2xl border border-white/10 overflow-hidden z-[10000] w-64"
         >
           {menuContent}
+        </div>
+      )}
+      {shareCopied && (
+        <div className="fixed bottom-6 left-1/2 z-[10001] -translate-x-1/2 rounded-xl border border-green-400/30 bg-slate-900/95 px-4 py-3 text-sm text-green-300 shadow-2xl backdrop-blur-sm">
+          {t.shareCopied}
         </div>
       )}
     </div>

@@ -6,6 +6,13 @@ import { fetchWithAuth, bumpAvatarVersion, getCurrentAvatarVersion } from '../li
 import LoadingScreen from './LoadingScreen';
 import { translations } from '../lib/locales';
 import type { UserProfile } from '../types/user';
+import PhoneInput from './PhoneInput';
+import { removeFCMToken } from '../lib/firebase';
+import { clearUserCache } from '../lib/cache';
+import { getUserDisplayName, getUserUsernameLabel } from '../lib/userDisplay';
+import { Capacitor } from '@capacitor/core';
+import { APK_URL, shareQueenChat } from '../lib/share';
+import AvatarCropModal from './AvatarCropModal';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -15,6 +22,8 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [username, setUsername] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -29,12 +38,14 @@ export default function Profile() {
     message: '',
   });
   const [isAvatarLoading, setIsAvatarLoading] = useState(false);
+  const [avatarFileToCrop, setAvatarFileToCrop] = useState<File | null>(null);
+  
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const apiUrl = import.meta.env.VITE_API_URL;
   const t = translations[language as keyof typeof translations];
   const isMounted = useRef(true);
 
-  const ADMIN_ID = '82a18fba-e6b8-4eb8-a77a-2311bcd19f16';
+  const ADMIN_ID = '33f676d7-9ab6-4eaa-b3c4-d4552b499f58';
   const isAdmin = user?.id === ADMIN_ID;
 
   useEffect(() => {
@@ -84,81 +95,56 @@ export default function Profile() {
     }
   }, [profile?.avatar, updateAvatarPreview, isAvatarLoading]);
 
+  const validateUsername = (username: string): string | null => {
+    if (!username || username.trim() === '') {
+      return t.usernameRequired;
+    }
+
+    if (username.length < 3) {
+      return t.usernameTooShort;
+    }
+
+    if (username.length > 30) {
+      return t.usernameTooLong;
+    }
+
+    const usernameRegex = /^[a-zA-Z0-9_-]+$/;
+    if (!usernameRegex.test(username)) {
+      return t.usernameInvalid;
+    }
+
+    return null;
+  };
+
+  const validateDisplayName = (name: string): string | null => {
+    if (name && name.length > 100) {
+      return t.displayNameTooLong;
+    }
+    return null;
+  };
+
   const validateEmail = (email: string): string | null => {
     if (!email || email.trim() === '') {
-      return t.emailRequired || 'Email обязателен для заполнения';
+      return null; // Email необязательный, возвращаем null
+    }
+
+    if (typeof email !== 'string') {
+      return t.emailMustBeString;
     }
 
     const emailRegex = /^[^\s@]+@([^\s@]+\.)+[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return t.emailInvalid || 'Введите корректный email адрес';
+      return t.emailInvalid;
     }
 
     if (email.length > 254) {
-      return t.emailTooLong || 'Email не может быть длиннее 254 символов';
-    }
-
-    const localPart = email.split('@')[0];
-    if (localPart.length > 64) {
-      return t.emailLocalTooLong || 'Локальная часть email не может быть длиннее 64 символов';
-    }
-
-    const invalidPatterns = [
-      /\.\./,
-      /^\./,
-      /\.$/,
-      /^@/,
-      /@.*@/,
-    ];
-
-    for (const pattern of invalidPatterns) {
-      if (pattern.test(email)) {
-        return t.emailInvalidFormat || 'Некорректный формат email адреса';
-      }
-    }
-
-    const domain = email.split('@')[1];
-    if (domain && !domain.includes('.') || (domain && domain.split('.').pop()?.length < 2)) {
-      return t.emailInvalidDomain || 'Некорректный домен email адреса';
+      return t.emailTooLong;
     }
 
     return null;
   };
 
-  const validateUsername = (username: string): string | null => {
-    if (!username || username.trim() === '') {
-      return t.usernameRequired || 'Имя пользователя обязательно';
-    }
-
-    if (username.length < 3) {
-      return t.usernameTooShort || 'Имя пользователя должно содержать минимум 3 символа';
-    }
-
-    if (username.length > 50) {
-      return t.usernameTooLong || 'Имя пользователя не может быть длиннее 50 символов';
-    }
-
-    const usernameRegex = /^[a-zA-Zа-яА-Я0-9_-]+$/;
-    if (!usernameRegex.test(username)) {
-      return t.usernameInvalid || 'Имя пользователя может содержать только буквы, цифры, дефис и нижнее подчеркивание';
-    }
-
-    return null;
-  };
-
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    if (!file.type.startsWith('image/')) {
-      setError('Можно загружать только изображения');
-      return;
-    }
-    
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Изображение не должно превышать 2MB');
-      return;
-    }
+  const uploadAvatar = async (file: File) => {
     
     setIsUploadingAvatar(true);
     setIsAvatarLoading(true);
@@ -175,7 +161,7 @@ export default function Profile() {
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to upload avatar');
+        throw new Error(errorData.detail || t.avatarUploadFailed);
       }
       
       const { url } = await response.json();
@@ -191,17 +177,35 @@ export default function Profile() {
       const profileResponse = await fetchWithAuth(`${apiUrl}/auth/me`);
       const profileData = await profileResponse.json();
       setProfile(profileData);
+      setDisplayName(profileData.display_name || profileData.username);
+      setPhone(profileData.phone || '');
+      setEmail(profileData.email || '');
       
-      setSuccess('Аватар обновлён');
+      setSuccess(t.avatarUpdated);
       setTimeout(() => setSuccess(''), 3000);
       
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Не удалось загрузить аватар');
+      setError(error instanceof Error ? error.message : t.avatarUploadFailed);
     } finally {
       setIsUploadingAvatar(false);
       setIsAvatarLoading(false);
-      if (avatarInputRef.current) avatarInputRef.current.value = '';
     }
+  };
+
+  const handleAvatarFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (avatarInputRef.current) avatarInputRef.current.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setError(t.imageOnly);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError(t.imageTooLarge);
+      return;
+    }
+    setError('');
+    setAvatarFileToCrop(file);
   };
 
   useEffect(() => {
@@ -217,7 +221,9 @@ export default function Profile() {
         if (isMounted.current) {
           setProfile(data);
           setUsername(data.username);
-          setEmail(data.email);
+          setDisplayName(data.display_name || data.username);
+          setPhone(data.phone || '');
+          setEmail(data.email || '');
           
           if (data.avatar) {
             const baseUrl = data.avatar.split('?')[0];
@@ -248,33 +254,45 @@ export default function Profile() {
       return;
     }
 
+    const displayNameError = validateDisplayName(displayName);
+    if (displayNameError) {
+      setError(displayNameError);
+      return;
+    }
+
     const emailError = validateEmail(email);
     if (emailError) {
       setError(emailError);
       return;
     }
 
-    if (username === profile?.username && email === profile?.email) {
-      setError(t.noChanges || 'Нет изменений для сохранения');
-      return;
-    }
-
     try {
+      const updateData: any = {};
+      if (username !== profile?.username) updateData.username = username;
+      if (displayName !== (profile?.display_name || profile?.username)) updateData.display_name = displayName;
+      if (email !== (profile?.email || '')) updateData.email = email || null;
+      if (phone !== profile?.phone) updateData.phone = phone;
+
+      if (Object.keys(updateData).length === 0) {
+        setError(t.noChanges);
+        return;
+      }
+
       const response = await fetchWithAuth(`${apiUrl}/auth/profile`, {
         method: 'PATCH',
-        body: JSON.stringify({ username, email }),
+        body: JSON.stringify(updateData),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        let errorMessage = errorData.detail || t.usernameTaken || 'Ошибка обновления профиля';
+        let errorMessage = errorData.detail || t.profileUpdateFailed;
         
-        if (errorMessage.toLowerCase().includes('email already exists')) {
-          errorMessage = t.emailAlreadyExists || 'Этот email уже используется';
-        } else if (errorMessage.toLowerCase().includes('invalid email')) {
-          errorMessage = t.emailInvalid || 'Некорректный email адрес';
-        } else if (errorMessage.toLowerCase().includes('username already taken')) {
-          errorMessage = t.usernameTaken || 'Это имя пользователя уже занято';
+        if (errorMessage.toLowerCase().includes('username already taken')) {
+          errorMessage = t.usernameTaken;
+        } else if (errorMessage.toLowerCase().includes('phone already taken')) {
+          errorMessage = t.phoneTaken;
+        } else if (errorMessage.toLowerCase().includes('email already exists')) {
+          errorMessage = t.emailAlreadyExists;
         }
         
         throw new Error(errorMessage);
@@ -282,17 +300,29 @@ export default function Profile() {
 
       const data = await response.json();
       setProfile(data);
-      setSuccess(t.profileUpdated || 'Профиль успешно обновлён');
+      setDisplayName(data.display_name || data.username);
+      setEmail(data.email || '');
+      setPhone(data.phone || '');
+      
+      dispatch(updateUser({ 
+        username: data.username,
+        display_name: data.display_name,
+        email: data.email,
+        phone: data.phone
+      }));
+      
       setIsEditing(false);
+      setSuccess(t.profileUpdated);
+      setTimeout(() => setSuccess(''), 3000);
       
     } catch (error) {
-      setError(error instanceof Error ? error.message : t.error || 'Ошибка обновления');
+      setError(error instanceof Error ? error.message : t.profileUpdateFailed);
     }
   };
 
   const handleDeleteAccount = async () => {
     if (confirmText !== 'DELETE') {
-      setError(t.deleteConfirmWrong || 'Введите DELETE для подтверждения');
+      setError(t.deleteConfirmWrong);
       return;
     }
 
@@ -306,9 +336,11 @@ export default function Profile() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || t.deleteFailed || 'Не удалось удалить аккаунт');
+        throw new Error(errorData.detail || t.deleteFailed);
       }
 
+      await removeFCMToken();
+      if (user) await clearUserCache(user.id);
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       localStorage.removeItem('avatar_version');
@@ -316,8 +348,8 @@ export default function Profile() {
       
       setModal({
         isOpen: true,
-        title: t.accountDeleted || 'Аккаунт удалён',
-        message: t.accountDeletedMessage || 'Ваш аккаунт успешно удалён. До свидания!',
+        title: t.accountDeleted,
+        message: t.accountDeletedMessage,
       });
       
       setTimeout(() => {
@@ -325,7 +357,7 @@ export default function Profile() {
       }, 2000);
       
     } catch (error) {
-      setError(error instanceof Error ? error.message : t.deleteFailed || 'Не удалось удалить аккаунт');
+      setError(error instanceof Error ? error.message : t.deleteFailed);
       setShowDeleteConfirm(false);
       setConfirmText('');
     } finally {
@@ -333,12 +365,26 @@ export default function Profile() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await removeFCMToken();
+    if (user) await clearUserCache(user.id);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem('avatar_version');
     dispatch(logout());
     navigate('/login');
+  };
+
+  const handleShare = async () => {
+    try {
+      const result = await shareQueenChat(language as 'ru' | 'en');
+      if (result === 'copied') {
+        setSuccess(t.shareCopied);
+        window.setTimeout(() => setSuccess(''), 3000);
+      }
+    } catch (error) {
+      console.error('Unable to share QueenChat:', error);
+    }
   };
 
   const formatDate = (timestamp: number) => {
@@ -347,11 +393,6 @@ export default function Profile() {
       month: 'long',
       day: 'numeric',
     });
-  };
-
-  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newEmail = e.target.value;
-    setEmail(newEmail);
   };
 
   if (loading) {
@@ -396,7 +437,7 @@ export default function Profile() {
                 ) : avatarPreview ? (
                   <img 
                     src={avatarPreview} 
-                    alt="Avatar" 
+                    alt={t.avatarPreview} 
                     className="w-full h-full object-cover"
                     key={avatarPreview}
                     onError={(e) => {
@@ -409,13 +450,10 @@ export default function Profile() {
                         setAvatarPreview(null);
                       }
                     }}
-                    onLoad={() => {
-                      console.log('Avatar loaded successfully');
-                    }}
                   />
                 ) : (
                   <span className="text-5xl text-white font-bold">
-                    {profile?.username?.charAt(0).toUpperCase()}
+                    {getUserDisplayName(profile, t.userUnknown).charAt(0).toUpperCase()}
                   </span>
                 )}
               </div>
@@ -423,7 +461,7 @@ export default function Profile() {
                 onClick={() => avatarInputRef.current?.click()}
                 disabled={isUploadingAvatar}
                 className="absolute bottom-0 right-0 bg-purple-500 rounded-full p-2 shadow-lg hover:bg-purple-600 transition disabled:opacity-50"
-                title="Изменить аватар"
+                title={t.changeAvatar}
               >
                 {isUploadingAvatar ? (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -438,51 +476,69 @@ export default function Profile() {
                 ref={avatarInputRef}
                 type="file"
                 accept="image/*"
-                onChange={handleAvatarUpload}
+                onChange={handleAvatarFileSelect}
                 className="hidden"
               />
             </div>
+          </div>
+          <div className="mb-6 text-center">
+            <h1 className="text-2xl font-semibold text-white">{getUserDisplayName(profile, t.userUnknown)}</h1>
+            {getUserUsernameLabel(profile) && <p className="mt-1 text-sm text-purple-300">{getUserUsernameLabel(profile)}</p>}
           </div>
 
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
             {isEditing ? (
               <form onSubmit={handleUpdateProfile} className="space-y-4">
                 <div>
+                  <label className="block text-purple-200 text-sm mb-2">{t.displayNameLabel}</label>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder={t.displayNamePlaceholder}
+                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 transition"
+                    maxLength={100}
+                  />
+                  <p className="text-purple-300/70 text-xs mt-1">
+                    {t.displayNameHint}
+                  </p>
+                </div>
+                <div>
                   <label className="block text-purple-200 text-sm mb-2">{t.username}</label>
                   <input
                     type="text"
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    className={`w-full px-4 py-2 bg-white/10 border rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 transition ${
-                      error && error.includes('имя пользователя') 
-                        ? 'border-red-500' 
-                        : 'border-white/20'
-                    }`}
+                    placeholder={t.usernamePlaceholder}
+                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 transition"
                     required
-                    minLength={3}
-                    maxLength={50}
                     pattern="[a-zA-Z0-9_-]+"
                   />
                   <p className="text-purple-300/70 text-xs mt-1">
-                    {t.usernameHint || 'Только буквы, цифры, дефис и нижнее подчеркивание (3-50 символов)'}
+                    {t.usernameHint}
                   </p>
                 </div>
                 <div>
-                  <label className="block text-purple-200 text-sm mb-2">{t.email}</label>
+                  <label className="block text-purple-200 text-sm mb-2">{t.phoneLabel}</label>
+                  <PhoneInput
+                    value={phone}
+                    onChange={setPhone}
+                  />
+                  <p className="text-purple-300/70 text-xs mt-1">
+                    {t.phoneHint}
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-purple-200 text-sm mb-2">{t.emailOptionalLabel}</label>
                   <input
                     type="email"
                     value={email}
-                    onChange={handleEmailChange}
-                    className={`w-full px-4 py-2 bg-white/10 border rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 transition ${
-                      error && error.includes('email') 
-                        ? 'border-red-500' 
-                        : 'border-white/20'
-                    }`}
-                    required
-                    maxLength={254}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={t.emailPlaceholder}
+                    className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 transition"
                   />
                   <p className="text-purple-300/70 text-xs mt-1">
-                    {t.emailHint || 'Введите корректный email адрес (например, user@example.com)'}
+                    {t.emailHint}
                   </p>
                 </div>
                 {error && (
@@ -507,6 +563,8 @@ export default function Profile() {
                     onClick={() => {
                       setIsEditing(false);
                       setUsername(profile?.username || '');
+                      setDisplayName(profile?.display_name || profile?.username || '');
+                      setPhone(profile?.phone || '');
                       setEmail(profile?.email || '');
                       setError('');
                     }}
@@ -519,31 +577,40 @@ export default function Profile() {
             ) : (
               <div className="space-y-4">
                 <div className="flex justify-between items-center pb-2 border-b border-white/10">
+                  <span className="text-purple-200">{t.displayNameLabel}</span>
+                  <span className="text-white font-medium">{getUserDisplayName(profile, t.userUnknown)}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-white/10">
                   <span className="text-purple-200">{t.username}</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-white font-medium">{profile?.username}</span>
+                    <span className="text-white font-medium">@{profile?.username}</span>
                     {isAdmin && (
                       <span className="text-xs bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-2 py-0.5 rounded-full font-medium">
-                        ADMIN
+                        {t.admin}
                       </span>
                     )}
                   </div>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-white/10">
+                  <span className="text-purple-200">{t.phoneLabel}</span>
+                  <span className="text-white font-medium">{profile?.phone || t.notProvided}</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-white/10">
                   <span className="text-purple-200">{t.email}</span>
-                  <span className="text-white font-medium">{profile?.email}</span>
+                  <span className="text-white font-medium">
+                    {profile?.email ? profile.email : t.notProvided}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center pb-2 border-b border-white/10">
                   <span className="text-purple-200">{t.registrationDate}</span>
                   <span className="text-white font-medium">{formatDate(profile?.created_at || 0)}</span>
                 </div>
                 
-                {/* Кнопка перехода на страницу публичного профиля */}
                 <button
-                  onClick={() => navigate(`/user/${user?.id}`)}
+                  onClick={() => navigate(`/user/${profile?.username}`)}
                   className="w-full mt-6 px-4 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20 transition cursor-pointer"
                 >
-                  Смотреть публичный профиль
+                  {t.viewProfile}
                 </button>
                 
                 <button
@@ -552,13 +619,41 @@ export default function Profile() {
                 >
                   {t.editProfile}
                 </button>
+
+                <div className="mt-6 rounded-xl border border-purple-300/20 bg-gradient-to-r from-purple-500/15 to-pink-500/15 p-4">
+                  <button
+                    onClick={() => void handleShare()}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 px-4 py-2.5 font-medium text-white shadow-lg transition hover:opacity-90 cursor-pointer"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                    </svg>
+                    {t.inviteFriends}
+                  </button>
+                  {!Capacitor.isNativePlatform() && (
+                    <div className="mt-4 border-t border-white/10 pt-4">
+                      <p className="mb-3 text-center text-sm text-purple-100">{t.androidApp}</p>
+                      <a
+                        href={APK_URL}
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 font-medium text-white transition hover:bg-white/20"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+                        {t.downloadApk}
+                      </a>
+                    </div>
+                  )}
+                  {success && (
+                    <p className="mt-3 text-center text-sm text-green-300">{success}</p>
+                  )}
+                </div>
                 
                 <div className="mt-8 pt-4 border-t border-red-500/30">
                   <button
                     onClick={() => setShowDeleteConfirm(true)}
                     className="w-full px-4 py-2 bg-red-500/20 text-red-300 rounded-xl hover:bg-red-500/30 hover:text-red-200 transition cursor-pointer"
                   >
-                    {t.deleteAccount || 'Удалить аккаунт'}
+                    {t.deleteAccount}
                   </button>
                 </div>
               </div>
@@ -574,15 +669,15 @@ export default function Profile() {
               <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
                 <span className="text-3xl">⚠️</span>
               </div>
-              <h2 className="text-2xl font-bold text-white">{t.deleteAccount || 'Удалить аккаунт'}</h2>
+              <h2 className="text-2xl font-bold text-white">{t.deleteAccount}</h2>
               <p className="text-purple-200 mt-2">
-                {t.deleteAccountWarning || 'Это действие необратимо. Все ваши чаты, сообщения и данные будут удалены навсегда.'}
+                {t.deleteAccountWarning}
               </p>
             </div>
             
             <div className="mb-4">
               <label className="block text-purple-200 text-sm mb-2">
-                {t.deleteConfirmInstruction || 'Введите DELETE для подтверждения'}
+                {t.deleteConfirmInstruction}
               </label>
               <input
                 type="text"
@@ -607,7 +702,7 @@ export default function Profile() {
                   isDeleting ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                {isDeleting ? (t.deleting || 'Удаление...') : (t.delete || 'Удалить')}
+                {isDeleting ? t.deleting : t.delete}
               </button>
               <button
                 onClick={() => {
@@ -642,6 +737,18 @@ export default function Profile() {
             </button>
           </div>
         </div>
+      )}
+
+      {avatarFileToCrop && (
+        <AvatarCropModal
+          file={avatarFileToCrop}
+          language={language}
+          onCancel={() => setAvatarFileToCrop(null)}
+          onSave={async croppedFile => {
+            await uploadAvatar(croppedFile);
+            setAvatarFileToCrop(null);
+          }}
+        />
       )}
     </>
   );

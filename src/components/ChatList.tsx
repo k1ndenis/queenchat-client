@@ -11,6 +11,10 @@ import UserMenu from './UserMenu';
 import Logo from './Logo';
 import Avatar from './Avatar';
 import CreateChatModal from './CreateChatModal';
+import ChannelSearch from './ChannelSearch';
+import { getCachedChatList, setCachedChatList } from '../lib/cache';
+import { getUserDisplayName } from '../lib/userDisplay';
+import { getMessagePreview } from '../lib/messagePreview';
 
 export default function ChatList() {
   const navigate = useNavigate();
@@ -19,7 +23,9 @@ export default function ChatList() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [lastMessages, setLastMessages] = useState<Map<string, LastMessage>>(new Map());
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
+  const [unreadReactions, setUnreadReactions] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [hasCachedChats, setHasCachedChats] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [actionChatId, setActionChatId] = useState<string | null>(null);
   const [actionType, setActionType] = useState<'delete' | 'leave' | 'unsubscribe' | null>(null);
@@ -28,19 +34,27 @@ export default function ChatList() {
     title: '',
     message: '',
   });
+  const [incomingCall, setIncomingCall] = useState<{ from: string; chatId: string } | null>(null);
 
-  const ADMIN_ID = '82a18fba-e6b8-4eb8-a77a-2311bcd19f16';
+  const ADMIN_ID = '33f676d7-9ab6-4eaa-b3c4-d4552b499f58';
+
+  const toLastMessage = useCallback((message: any): LastMessage => ({
+    id: message.id, content: message.content || '', created_at: message.created_at,
+    sender_id: message.sender_id, sender_name: message.sender_name || '',
+    is_image: message.is_image, images: message.images, is_sticker: message.is_sticker,
+    media: message.media, edited_at: message.edited_at, deleted_at: message.deleted_at,
+  }), []);
 
   const closeModal = () => {
     setModal({ isOpen: false, title: '', message: '' });
   };
 
-  const openUserProfile = (userId: string, e: React.MouseEvent) => {
+  const openUserProfile = (username: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (userId === user?.id) {
+    if (username === user?.username) {
       navigate('/profile');
     } else {
-      navigate(`/user/${userId}`);
+      navigate(`/user/${username}`);
     }
   };
 
@@ -70,55 +84,71 @@ export default function ChatList() {
       const data = await response.json();
       
       if (data && data.id) {
-        let displayContent = data.content;
-        if (data.is_image) {
-          displayContent = "🖼️ Изображение";
-        }
-        setLastMessages(prev => new Map(prev).set(chatId, {
-          id: data.id,
-          content: displayContent,
-          created_at: data.created_at,
-          sender_id: data.sender_id,
-          sender_name: data.sender_name || ''
-        }));
+        setLastMessages(prev => new Map(prev).set(chatId, toLastMessage(data)));
         return data.created_at;
       }
     } catch (error) {
       console.error('Error loading last message:', error);
     }
     return null;
-  }, []);
+  }, [toLastMessage]);
 
   useEffect(() => {
     if (!user) return;
 
+    let cancelled = false;
     const loadChats = async () => {
-      setLoading(true);
+      const cached = await getCachedChatList(user.id);
+      if (cached && !cancelled) {
+        setChats(cached.chats);
+        setLastMessages(new Map(cached.lastMessages));
+        setUnreadCounts(new Map(cached.unreadCounts));
+        setUnreadReactions(new Map(cached.unreadReactions));
+        setHasCachedChats(true);
+        setLoading(false);
+      } else if (!cancelled) {
+        setHasCachedChats(false);
+        setLoading(true);
+      }
+
       try {
         const response = await fetchWithAuth(`/chats/`);
         const data = await response.json();
         
-        if (Array.isArray(data)) {
+        if (Array.isArray(data) && !cancelled) {
           setChats(data);
+          setHasCachedChats(true);
+          setUnreadReactions(new Map(data.filter((chat: Chat) => (chat.unread_reactions_count || 0) > 0).map((chat: Chat) => [chat.id, chat.unread_reactions_count || 0])));
+          setUnreadCounts(new Map(data.filter((chat: Chat) => (chat.unread_count || 0) > 0).map((chat: Chat) => [chat.id, chat.unread_count || 0])));
           
           const promises = data.map(async (chat: Chat) => {
-            await Promise.all([
-              loadLastMessage(chat.id),
-              loadUnreadCount(chat.id)
-            ]);
+            await loadLastMessage(chat.id);
           });
           await Promise.all(promises);
         }
       } catch (error) {
         console.error('Error loading chats:', error);
-        setChats([]);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     
-    loadChats();
-  }, [user, loadLastMessage, loadUnreadCount]);
+    void loadChats();
+    return () => { cancelled = true; };
+  }, [user, loadLastMessage]);
+
+  useEffect(() => {
+    if (!user || (!hasCachedChats && chats.length === 0)) return;
+    const timer = window.setTimeout(() => {
+      void setCachedChatList(user.id, {
+        chats,
+        lastMessages: Array.from(lastMessages.entries()),
+        unreadCounts: Array.from(unreadCounts.entries()),
+        unreadReactions: Array.from(unreadReactions.entries()),
+      });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [user, chats, lastMessages, unreadCounts, unreadReactions, hasCachedChats]);
 
   useEffect(() => {
     if (chats.length === 0) return;
@@ -141,6 +171,7 @@ export default function ChatList() {
 
     const handleNewMessage = (newMsg: any) => {
       if (newMsg.sender_id !== user.id) {
+        setLastMessages(prev => new Map(prev).set(newMsg.chat_id, toLastMessage(newMsg)));
         loadUnreadCount(newMsg.chat_id);
         loadLastMessage(newMsg.chat_id);
         
@@ -170,16 +201,56 @@ export default function ChatList() {
       loadLastMessage(data.chat_id);
     };
 
+    const handleMessageUpdated = (data: { chat_id: string; message: LastMessage }) => {
+      if (!data?.chat_id || !data?.message) return;
+      setLastMessages(prev => new Map(prev).set(data.chat_id, toLastMessage(data.message)));
+    };
+
+    const handleReactionNotification = (data: { chat_id: string }) => {
+      setUnreadReactions(prev => new Map(prev).set(data.chat_id, 1));
+    };
+    const clearReactionNotification = (data: { chat_id: string }) => {
+      setUnreadReactions(prev => {
+        const next = new Map(prev);
+        next.delete(data.chat_id);
+        return next;
+      });
+    };
+    const handleReactionNotificationRemoved = async (data: { chat_id: string }) => {
+      try {
+        const response = await fetchWithAuth('/chats/');
+        const refreshedChats: Chat[] = await response.json();
+        const chat = refreshedChats.find(item => item.id === data.chat_id);
+        if (chat?.has_unread_reactions) {
+          setUnreadReactions(prev => new Map(prev).set(data.chat_id, chat.unread_reactions_count || 1));
+        } else {
+          clearReactionNotification(data);
+        }
+      } catch {
+        clearReactionNotification(data);
+      }
+    };
+
     socket.on('new-message', handleNewMessage);
     socket.on('message_read', handleMessageRead);
     socket.on('messages_read', handleMessagesRead);
+    socket.on('edit_message', handleMessageUpdated);
+    socket.on('delete_message', handleMessageUpdated);
+    socket.on('message_reaction_notification', handleReactionNotification);
+    socket.on('message_reaction_notification_removed', handleReactionNotificationRemoved);
+    socket.on('reaction_notifications_read', clearReactionNotification);
     
     return () => {
       socket.off('new-message', handleNewMessage);
       socket.off('message_read', handleMessageRead);
       socket.off('messages_read', handleMessagesRead);
+      socket.off('edit_message', handleMessageUpdated);
+      socket.off('delete_message', handleMessageUpdated);
+      socket.off('message_reaction_notification', handleReactionNotification);
+      socket.off('message_reaction_notification_removed', handleReactionNotificationRemoved);
+      socket.off('reaction_notifications_read', clearReactionNotification);
     };
-  }, [user, loadUnreadCount, loadLastMessage]);
+  }, [user, loadUnreadCount, loadLastMessage, toLastMessage]);
 
   useEffect(() => {
     const handleRefreshChatList = async () => {
@@ -189,26 +260,17 @@ export default function ChatList() {
         
         if (Array.isArray(data)) {
           setChats(data);
+          setUnreadReactions(new Map(data.filter((chat: Chat) => (chat.unread_reactions_count || 0) > 0).map((chat: Chat) => [chat.id, chat.unread_reactions_count || 0])));
           
           const newUnreadCounts = new Map();
           await Promise.all(
             data.map(async (chat: Chat) => {
-              const countResponse = await fetchWithAuth(`/chats/${chat.id}/messages/unread/count`);
-              const countData = await countResponse.json();
-              if (countData.count > 0) {
-                newUnreadCounts.set(chat.id, countData.count);
-              }
+              if ((chat.unread_count || 0) > 0) newUnreadCounts.set(chat.id, chat.unread_count || 0);
               
               const lastMsgResponse = await fetchWithAuth(`/chats/${chat.id}/last-message`);
               const lastMsgData = await lastMsgResponse.json();
               if (lastMsgData && lastMsgData.id) {
-                setLastMessages(prev => new Map(prev).set(chat.id, {
-                  id: lastMsgData.id,
-                  content: lastMsgData.content,
-                  created_at: lastMsgData.created_at,
-                  sender_id: lastMsgData.sender_id,
-                  sender_name: lastMsgData.sender_name || ''
-                }));
+                setLastMessages(prev => new Map(prev).set(chat.id, toLastMessage(lastMsgData)));
               }
             })
           );
@@ -221,7 +283,34 @@ export default function ChatList() {
     
     window.addEventListener('refreshChatList', handleRefreshChatList);
     return () => window.removeEventListener('refreshChatList', handleRefreshChatList);
-  }, []);
+  }, [toLastMessage]);
+
+  // Обработка входящих звонков
+  useEffect(() => {
+    const handleIncomingCall = (event: CustomEvent) => {
+      const { caller_id, chat_id } = event.detail;
+      console.log(`📞 Incoming call from ${caller_id} in chat ${chat_id}`);
+      
+      // Находим имя звонящего
+      const chat = chats.find(c => c.id === chat_id);
+      const caller = chat?.participants?.find(p => p.user_id === caller_id);
+      const callerName = getUserDisplayName(caller, t.userUnknown);
+      
+      setIncomingCall({ from: caller_id, chatId: chat_id });
+      
+      const accept = window.confirm(`${callerName} ${t.incomingCallQuestion}`);
+      if (accept) {
+        navigate(`/chat/${chat_id}`);
+      }
+      setIncomingCall(null);
+    };
+
+    window.addEventListener('incoming_call', handleIncomingCall as EventListener);
+    
+    return () => {
+      window.removeEventListener('incoming_call', handleIncomingCall as EventListener);
+    };
+  }, [navigate, chats]);
 
   const handleChatCreated = (chatId: string) => {
     navigate(`/chat/${chatId}`);
@@ -249,19 +338,19 @@ export default function ChatList() {
         
         setModal({
           isOpen: true,
-          title: 'Успешно',
-          message: 'Чат удален',
+          title: t.success,
+          message: t.chatDeleted,
         });
       } else {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Не удалось удалить чат');
+        throw new Error(errorData.detail || t.failedToDeleteChat);
       }
     } catch (error) {
       console.error('Ошибка при удалении чата:', error);
       setModal({
         isOpen: true,
-        title: t.error || 'Ошибка',
-        message: error instanceof Error ? error.message : (t.failedToDeleteChat || 'Не удалось удалить чат'),
+        title: t.error,
+        message: error instanceof Error ? error.message : t.failedToDeleteChat,
       });
     } finally {
       setActionChatId(null);
@@ -290,19 +379,19 @@ export default function ChatList() {
         
         setModal({
           isOpen: true,
-          title: 'Успешно',
-          message: 'Вы покинули беседу',
+          title: t.success,
+          message: t.leftChat,
         });
       } else {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Не удалось покинуть беседу');
+        throw new Error(errorData.detail || t.failedToLeaveChat);
       }
     } catch (error) {
       console.error('Ошибка при выходе из беседы:', error);
       setModal({
         isOpen: true,
-        title: t.error || 'Ошибка',
-        message: error instanceof Error ? error.message : 'Не удалось покинуть беседу',
+        title: t.error,
+        message: error instanceof Error ? error.message : t.failedToLeaveChat,
       });
     } finally {
       setActionChatId(null);
@@ -331,19 +420,19 @@ export default function ChatList() {
         
         setModal({
           isOpen: true,
-          title: 'Успешно',
-          message: 'Вы отписались от канала',
+          title: t.success,
+          message: t.unsubscribedFromChannel,
         });
       } else {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || 'Не удалось отписаться от канала');
+        throw new Error(errorData.detail || t.failedToUnsubscribeChannel);
       }
     } catch (error) {
       console.error('Ошибка при отписке от канала:', error);
       setModal({
         isOpen: true,
-        title: t.error || 'Ошибка',
-        message: error instanceof Error ? error.message : 'Не удалось отписаться от канала',
+        title: t.error,
+        message: error instanceof Error ? error.message : t.failedToUnsubscribeChannel,
       });
     } finally {
       setActionChatId(null);
@@ -375,7 +464,7 @@ export default function ChatList() {
       return {
         show: true,
         action: 'delete' as 'delete',
-        title: 'Удалить чат',
+        title: t.deleteChat,
         icon: (
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -389,7 +478,7 @@ export default function ChatList() {
         return {
           show: true,
           action: 'delete' as 'delete',
-          title: 'Удалить канал',
+          title: t.deleteChannel,
           icon: (
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -401,7 +490,7 @@ export default function ChatList() {
         return {
           show: true,
           action: 'delete' as 'delete',
-          title: 'Удалить канал',
+          title: t.deleteChannel,
           icon: (
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -412,7 +501,7 @@ export default function ChatList() {
       return {
         show: true,
         action: 'unsubscribe' as 'unsubscribe',
-        title: 'Отписаться от канала',
+        title: t.unsubscribeChannel,
         icon: (
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 11H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
@@ -426,7 +515,7 @@ export default function ChatList() {
         return {
           show: true,
           action: 'delete' as 'delete',
-          title: 'Удалить беседу',
+          title: t.deleteConversation,
           icon: (
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -438,7 +527,7 @@ export default function ChatList() {
         return {
           show: true,
           action: 'delete' as 'delete',
-          title: 'Удалить беседу',
+          title: t.deleteConversation,
           icon: (
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -449,7 +538,7 @@ export default function ChatList() {
       return {
         show: true,
         action: 'leave' as 'leave',
-        title: 'Покинуть беседу',
+        title: t.leaveGroup,
         icon: (
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path fillRule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 11H7a1 1 0 100 2h7.586l-1.293 1.293z" clipRule="evenodd" />
@@ -464,23 +553,23 @@ export default function ChatList() {
   const getActionModalContent = () => {
     if (actionType === 'delete') {
       return {
-        title: 'Удалить чат',
-        message: 'Вы уверены, что хотите удалить этот чат? Все сообщения будут потеряны.',
-        buttonText: 'Удалить'
+        title: t.deleteChat,
+        message: t.deleteChatWarning,
+        buttonText: t.delete
       };
     }
     if (actionType === 'leave') {
       return {
-        title: 'Покинуть беседу',
-        message: 'Вы уверены, что хотите покинуть беседу? Вы не сможете просматривать сообщения.',
-        buttonText: 'Покинуть'
+        title: t.leaveGroup,
+        message: t.leaveGroupWarning,
+        buttonText: t.leaveGroup
       };
     }
     if (actionType === 'unsubscribe') {
       return {
-        title: 'Отписаться от канала',
-        message: 'Вы уверены, что хотите отписаться от канала?',
-        buttonText: 'Отписаться'
+        title: t.unsubscribeChannel,
+        message: t.unsubscribeChannelWarning,
+        buttonText: t.unsubscribeChannel
       };
     }
     return { title: '', message: '', buttonText: '' };
@@ -495,7 +584,7 @@ export default function ChatList() {
     if (hours < 24) {
       return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     } else if (hours < 48) {
-      return t.yesterday || 'Вчера';
+      return t.yesterday;
     } else {
       return date.toLocaleDateString([], { day: '2-digit', month: '2-digit' });
     }
@@ -525,25 +614,27 @@ export default function ChatList() {
 
         {/* Main Content */}
         <div className="max-w-4xl mx-auto px-6 py-6">
-          {/* Create Chat Button */}
-          <div className="fixed bottom-6 right-6 z-50">
+          {/* Action Buttons */}
+          <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-50">
             <button
               onClick={() => setIsCreateModalOpen(true)}
               className="w-14 h-14 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg flex items-center justify-center hover:scale-105 transition duration-300 hover:shadow-xl"
-              title="Создать чат"
+              title={t.createChat}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19"/>
                 <line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
             </button>
+            
+            <ChannelSearch />
           </div>
 
           {/* Chat List */}
           <div className="space-y-2">
             {chats.length === 0 ? (
               <div className="text-center text-purple-300 py-8">
-                {t.noChats || 'У вас пока нет чатов. Создайте первый!'}
+                {t.noChats}
               </div>
             ) : (
               chats.map(chat => {
@@ -555,16 +646,16 @@ export default function ChatList() {
                 const otherUser = isPrivate && chat.participants?.find(p => p.user_id !== user?.id);
                 
                 let displayName = '';
-                if (chat.name) {
+                if (isPrivate) {
+                  displayName = getUserDisplayName(otherUser, t.userUnknown);
+                } else if (chat.name) {
                   displayName = chat.name;
-                } else if (isPrivate && otherUser?.username) {
-                  displayName = otherUser.username;
                 } else if (isGroup) {
-                  displayName = 'Беседа';
+                  displayName = t.groupChat;
                 } else if (isChannel) {
-                  displayName = 'Канал';
+                  displayName = t.channelChat;
                 } else {
-                  displayName = 'Чат';
+                  displayName = t.chat;
                 }
                 
                 const isAdminUser = otherUser?.user_id === ADMIN_ID;
@@ -572,21 +663,22 @@ export default function ChatList() {
                 
                 const lastMsg = lastMessages.get(chat.id);
                 const isOwn = lastMsg?.sender_id === user?.id;
-                const msgPreview = lastMsg?.content || t.noMessages || 'Нет сообщений';
+                const msgPreview = getMessagePreview(lastMsg, language as 'ru' | 'en', { noMessagesLabel: t.noMessages, deletedLabel: t.messageDeleted });
                 const unreadCount = unreadCounts.get(chat.id) || 0;
+                const unreadReactionCount = unreadReactions.get(chat.id) || 0;
                 const showParticipantsCount = !isPrivate && chat.participants?.length;
                 
                 const actionButton = getActionButton(chat);
                 
-                // Для отображения отправителя в группах
                 const showSender = isGroup && lastMsg && !isOwn;
-                const senderName = showSender ? lastMsg.sender_name || 'Пользователь' : '';
+                const messageSender = chat.participants?.find(participant => participant.user_id === lastMsg?.sender_id);
+                const senderName = showSender ? getUserDisplayName(messageSender, t.userUnknown) : '';
                 
                 return (
                   <div
                     key={chat.id}
                     className={`bg-white/10 backdrop-blur-sm rounded-xl p-3 hover:bg-white/20 transition-all duration-200 cursor-pointer group ${
-                      unreadCount > 0 ? 'bg-purple-500/20' : ''
+                      unreadCount > 0 || unreadReactionCount > 0 ? 'bg-purple-500/20' : ''
                     } ${
                       isChannel ? 'border-l-4 border-l-yellow-500/50' : ''
                     } ${
@@ -602,10 +694,10 @@ export default function ChatList() {
                         {isPrivate ? (
                           <Avatar 
                             userId={otherUser?.user_id}
-                            name={otherUser?.username}
+                            name={getUserDisplayName(otherUser, t.userUnknown)}
                             size="lg"
                             src={otherUser?.avatar}
-                            onClick={(e) => otherUser && openUserProfile(otherUser.user_id, e)}
+                            onClick={(e) => otherUser && openUserProfile(otherUser.username, e)}
                           />
                         ) : isGroup ? (
                           <div className="relative">
@@ -640,7 +732,7 @@ export default function ChatList() {
                         ) : (
                           <Avatar 
                             userId={otherUser?.user_id}
-                            name={otherUser?.username}
+                            name={getUserDisplayName(otherUser, t.userUnknown)}
                             size="lg"
                           />
                         )}
@@ -650,6 +742,9 @@ export default function ChatList() {
                             {unreadCount > 99 ? '99+' : unreadCount}
                           </div>
                         )}
+                        {unreadReactionCount > 0 && (
+                          <div className="absolute -bottom-1 -right-1 rounded-full border border-purple-200/50 bg-purple-600 px-1.5 py-0.5 text-xs leading-none shadow-lg" title="Непрочитанная реакция">♥</div>
+                        )}
                       </div>
                       
                       {/* Chat Info */}
@@ -657,7 +752,6 @@ export default function ChatList() {
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex flex-col min-w-0 flex-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              {/* Иконка типа чата - только на мобилках, на десктопе можно убрать или оставить */}
                               <div className="hidden sm:flex items-center gap-1.5">
                                 {isGroup && (
                                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2" className="flex-shrink-0">
@@ -679,23 +773,22 @@ export default function ChatList() {
                               </h3>
                             </div>
                             
-                            {/* Бейджи */}
                             <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                               {isCreator && !isPrivate && (
-                                <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full" title="Создатель">👑</span>
+                                <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full" title={t.youAreCreator}>👑</span>
                               )}
                               {isAdminUser && (
-                                <span className="text-xs bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-1.5 py-0.5 rounded-full font-medium shadow-sm">ADMIN</span>
+                                <span className="text-xs bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-1.5 py-0.5 rounded-full font-medium shadow-sm">{t.admin}</span>
                               )}
                               {isGroup && (
-                                <span className="text-xs bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">Беседа</span>
+                                <span className="text-xs bg-green-500/20 text-green-400 px-1.5 py-0.5 rounded-full">{t.groupChat}</span>
                               )}
                               {isChannel && (
-                                <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full">Канал</span>
+                                <span className="text-xs bg-yellow-500/20 text-yellow-400 px-1.5 py-0.5 rounded-full">{t.channelChat}</span>
                               )}
                               {showParticipantsCount && (
                                 <span className="text-xs bg-purple-500/30 text-purple-300 px-1.5 py-0.5 rounded-full">
-                                  {isGroup ? `👥 ${chat.participants.length}` : `📢 ${chat.participants.length}`}
+                                  {isGroup ? `👥 ${chat.participants.length}` : `👥 ${chat.participants.length}`}
                                 </span>
                               )}
                             </div>
@@ -708,7 +801,6 @@ export default function ChatList() {
                           )}
                         </div>
                         
-                        {/* Preview последнего сообщения с отправителем */}
                         <p className={`text-sm truncate mt-1 ${unreadCount > 0 ? 'text-white font-medium' : 'text-purple-300'}`}>
                           {isChannel && !isOwn && (
                             <span className="text-yellow-400 mr-1">📢</span>
@@ -718,12 +810,11 @@ export default function ChatList() {
                               {senderName}: 
                             </span>
                           )}
-                          {isOwn && <span className="text-purple-400 mr-1">{t.you || 'Вы'}: </span>}
+                          {isOwn && <span className="text-purple-400 mr-1">{t.you}: </span>}
                           {msgPreview}
                         </p>
                       </div>
                       
-                      {/* Action Button */}
                       {actionButton.show && (
                         <button
                           onClick={(e) => {
@@ -746,14 +837,12 @@ export default function ChatList() {
         </div>
       </div>
 
-      {/* Create Chat Modal */}
       <CreateChatModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
         onChatCreated={handleChatCreated}
       />
 
-      {/* Action Confirmation Modal */}
       {actionChatId && actionType && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-gradient-to-br from-slate-800 to-red-900 rounded-2xl p-6 w-full max-w-md mx-4">
@@ -783,24 +872,23 @@ export default function ChatList() {
                 }}
                 className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition cursor-pointer"
               >
-                Отмена
+                {t.cancel}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Error Modal */}
       {modal.isOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-gradient-to-br from-slate-800 to-purple-900 rounded-2xl p-6 w-full max-w-md mx-4">
             <div className="text-center mb-4">
               <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 ${
-                modal.title === 'Успешно' 
+                modal.title === t.success 
                   ? 'bg-green-500/20' 
                   : 'bg-red-500/20'
               }`}>
-                {modal.title === 'Успешно' ? (
+                {modal.title === t.success ? (
                   <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="green" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M20 6L9 17l-5-5"/>
                   </svg>
@@ -815,8 +903,48 @@ export default function ChatList() {
               onClick={closeModal}
               className="w-full py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl hover:opacity-90 transition cursor-pointer"
             >
-              {t.ok || 'OK'}
+              {t.ok}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Модальное окно для входящего звонка */}
+      {incomingCall && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-gradient-to-br from-slate-800 to-green-900 rounded-2xl p-6 w-full max-w-md mx-4">
+            <div className="text-center mb-4">
+              <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="green" strokeWidth="2">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">{t.incomingCallTitle}</h2>
+              <p className="text-purple-200">
+                {(() => {
+                  const caller = chats.find(c => c.id === incomingCall.chatId)?.participants?.find(p => p.user_id === incomingCall.from);
+                  return getUserDisplayName(caller, t.userUnknown);
+                })()} {t.incomingCallQuestion}
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  navigate(`/chat/${incomingCall.chatId}`);
+                  setIncomingCall(null);
+                }}
+                className="flex-1 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition cursor-pointer"
+              >
+                {t.acceptCall}
+              </button>
+              <button
+                onClick={() => setIncomingCall(null)}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition cursor-pointer"
+              >
+                {t.declineCall}
+              </button>
+            </div>
           </div>
         </div>
       )}

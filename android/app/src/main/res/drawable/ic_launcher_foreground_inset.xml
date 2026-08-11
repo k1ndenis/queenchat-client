@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The PWA asset already has the desired logo and aspect ratio.  Adaptive icons
+  render their foreground inside a masked 108dp layer, so reserve a 16dp inset
+  on every side (76dp / 108dp ≈ 70%) to retain the PWA's visible white margin.
+-->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@mipmap/ic_launcher_foreground"
+    android:inset="16dp" />

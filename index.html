@@ -28,31 +28,79 @@
     <div id="root"></div>
 
     <!-- PWA Install Banner -->
-    <div id="pwa-install-banner" class="pwa-install-banner">
-      <div>
+    <div id="pwa-install-banner" class="pwa-install-banner" role="dialog" aria-label="Установка QueenChat" aria-hidden="true">
+      <div class="pwa-install-copy">
         <p style="color: white; font-weight: 600; margin: 0;">Установите QueenChat</p>
         <p style="color: rgba(255,255,255,0.8); font-size: 12px; margin: 4px 0 0;">Быстрый доступ и уведомления</p>
       </div>
-      <button id="pwa-install-btn">Установить</button>
+      <div class="pwa-install-actions">
+        <button id="pwa-install-btn" class="pwa-install-action">Установить</button>
+        <button id="pwa-install-close" class="pwa-install-close" type="button" aria-label="Закрыть баннер установки" title="Закрыть">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
     </div>
 
     <script>
       (function() {
-        // PWA install
+        const DISMISS_KEY = 'queenchat_pwa_install_dismissed_at';
+        const SESSION_HIDE_KEY = 'queenchat_pwa_install_hidden';
+        const DISMISS_TTL = 7 * 24 * 60 * 60 * 1000;
+        const AUTO_HIDE_DELAY = 10000;
         let deferredPrompt = null;
         const banner = document.getElementById('pwa-install-banner');
         const button = document.getElementById('pwa-install-btn');
+        const closeButton = document.getElementById('pwa-install-close');
+        let autoHideTimer = null;
+
+        const isStandalone = () => window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+        const isCapacitor = () => {
+          const capacitor = window.Capacitor;
+          return Boolean(capacitor && (
+            (typeof capacitor.isNativePlatform === 'function' && capacitor.isNativePlatform()) ||
+            (typeof capacitor.getPlatform === 'function' && capacitor.getPlatform() !== 'web')
+          ));
+        };
+        const isDismissed = () => {
+          try {
+            const dismissedAt = Number(localStorage.getItem(DISMISS_KEY));
+            return Number.isFinite(dismissedAt) && Date.now() - dismissedAt < DISMISS_TTL;
+          } catch {
+            return false;
+          }
+        };
+        const hideBanner = ({ remember = false } = {}) => {
+          if (!banner) return;
+          banner.classList.remove('show');
+          banner.setAttribute('aria-hidden', 'true');
+          if (autoHideTimer) window.clearTimeout(autoHideTimer);
+          try {
+            sessionStorage.setItem(SESSION_HIDE_KEY, '1');
+            if (remember) localStorage.setItem(DISMISS_KEY, String(Date.now()));
+          } catch { /* Storage can be unavailable in private browser contexts. */ }
+        };
+        const canShowBanner = () => {
+          try {
+            return !isStandalone() && !isCapacitor() && !isDismissed() && !sessionStorage.getItem(SESSION_HIDE_KEY);
+          } catch {
+            return !isStandalone() && !isCapacitor();
+          }
+        };
+        const showBanner = () => {
+          if (!banner || !canShowBanner()) return;
+          banner.classList.add('show');
+          banner.setAttribute('aria-hidden', 'false');
+          autoHideTimer = window.setTimeout(() => hideBanner(), AUTO_HIDE_DELAY);
+        };
 
         window.addEventListener('beforeinstallprompt', (event) => {
           event.preventDefault();
           deferredPrompt = event;
 
-          setTimeout(() => {
-            if (banner) {
-              banner.classList.add('show');
-            }
-          }, 2000);
+          window.setTimeout(showBanner, 2000);
         });
+
+        window.addEventListener('appinstalled', () => hideBanner({ remember: true }));
 
         if (button) {
           button.addEventListener('click', async () => {
@@ -64,11 +112,11 @@
 
             deferredPrompt = null;
 
-            if (banner) {
-              banner.classList.remove('show');
-            }
+            hideBanner({ remember: result.outcome === 'accepted' });
           });
         }
+
+        if (closeButton) closeButton.addEventListener('click', () => hideBanner({ remember: true }));
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>

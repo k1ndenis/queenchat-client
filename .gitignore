@@ -11,6 +11,13 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist.*
+build
+**/build/
+.gradle
+**/.gradle/
+google-services.json
+*.root-owned-backup-*
 *.local
 
 # Editor directories and files

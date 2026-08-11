@@ -1,10 +1,10 @@
-// components/CreateChatModal.tsx
 import { useState, useEffect } from 'react';
 import { fetchWithAuth } from '../lib/api';
 import { useAppSelector } from '../lib/redux/hooks';
 import { translations } from '../lib/locales';
 import type { User } from '../types/user';
 import Avatar from './Avatar';
+import { getUserDisplayName, getUserUsernameLabel, userMatchesSearchQuery } from '../lib/userDisplay';
 
 interface CreateChatModalProps {
   isOpen: boolean;
@@ -30,7 +30,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const ADMIN_ID = '82a18fba-e6b8-4eb8-a77a-2311bcd19f16';
+  const ADMIN_ID = '33f676d7-9ab6-4eaa-b3c4-d4552b499f58';
 
   useEffect(() => {
     if (!isOpen) return;
@@ -45,7 +45,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
           const sortedUsers = [...otherUsers].sort((a, b) => {
             if (a.id === ADMIN_ID) return -1;
             if (b.id === ADMIN_ID) return 1;
-            return a.username.localeCompare(b.username);
+            return getUserDisplayName(a).localeCompare(getUserDisplayName(b));
           });
           
           setUsers(sortedUsers);
@@ -53,7 +53,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
         }
       } catch (error) {
         console.error('Error loading users:', error);
-        setError(t.failedToLoadUsers || 'Не удалось загрузить список пользователей');
+        setError(t.failedToLoadUsers);
       }
     };
     
@@ -64,10 +64,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
     if (!searchQuery.trim()) {
       setFilteredUsers(users);
     } else {
-      const filtered = users.filter(u => 
-        u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.email.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      const filtered = users.filter(u => userMatchesSearchQuery(u, searchQuery));
       setFilteredUsers(filtered);
     }
   }, [searchQuery, users]);
@@ -95,14 +92,14 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
     } else if (type === 'group') {
       setStep('details');
     } else {
-      // Для канала сразу создаем, без выбора участников
+      // For channels we go straight to details
       setStep('details');
     }
   };
 
   const handleCreatePrivate = async () => {
     if (!selectedUser) {
-      setError('Выберите пользователя');
+      setError(t.selectUser);
       return;
     }
     
@@ -115,7 +112,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Не удалось создать чат');
+        throw new Error(errorData.detail || t.failedToCreateChat);
       }
       
       const newChat = await response.json();
@@ -123,7 +120,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
       handleClose();
     } catch (error) {
       console.error('Error creating chat:', error);
-      setError(error instanceof Error ? error.message : 'Не удалось создать чат');
+      setError(error instanceof Error ? error.message : t.failedToCreateChat);
     } finally {
       setLoading(false);
     }
@@ -131,12 +128,12 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
 
   const handleCreateGroup = async () => {
     if (!groupName.trim()) {
-      setError('Введите название беседы');
+      setError(t.enterGroupName);
       return;
     }
     
     if (selectedUsers.length < 2) {
-      setError('Выберите хотя бы 2 пользователей');
+      setError(t.chooseParticipants);
       return;
     }
     
@@ -152,7 +149,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Не удалось создать беседу');
+        throw new Error(errorData.detail || t.failedToCreateChat);
       }
       
       const newChat = await response.json();
@@ -160,7 +157,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
       handleClose();
     } catch (error) {
       console.error('Error creating group:', error);
-      setError(error instanceof Error ? error.message : 'Не удалось создать беседу');
+      setError(error instanceof Error ? error.message : t.failedToCreateChat);
     } finally {
       setLoading(false);
     }
@@ -168,7 +165,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
 
   const handleCreateChannel = async () => {
     if (!channelName.trim()) {
-      setError('Введите название канала');
+      setError(t.enterChannelName);
       return;
     }
     
@@ -184,7 +181,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || 'Не удалось создать канал');
+        throw new Error(errorData.detail || t.failedToCreateChat);
       }
       
       const newChat = await response.json();
@@ -192,7 +189,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
       handleClose();
     } catch (error) {
       console.error('Error creating channel:', error);
-      setError(error instanceof Error ? error.message : 'Не удалось создать канал');
+      setError(error instanceof Error ? error.message : t.failedToCreateChat);
     } finally {
       setLoading(false);
     }
@@ -214,10 +211,10 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-2xl font-bold text-white">
-            {step === 'type' && 'Создать чат'}
-            {step === 'select' && chatType === 'private' && 'Выбрать пользователя'}
-            {step === 'details' && chatType === 'group' && 'Создать беседу'}
-            {step === 'details' && chatType === 'channel' && 'Создать канал'}
+            {step === 'type' && t.createChat}
+            {step === 'select' && chatType === 'private' && t.selectUser}
+            {step === 'details' && chatType === 'group' && t.createConversation}
+            {step === 'details' && chatType === 'channel' && t.createChannel}
           </h2>
           <button
             onClick={handleClose}
@@ -227,7 +224,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
           </button>
         </div>
 
-        {/* Step 1: Выбор типа чата */}
+        {/* Step 1: choose chat type */}
         {step === 'type' && (
           <div className="space-y-3">
             <button
@@ -241,8 +238,8 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
                 </svg>
               </div>
               <div>
-                <p className="text-white font-semibold">Приватный чат</p>
-                <p className="text-purple-300 text-sm">Общайтесь один на один</p>
+                <p className="text-white font-semibold">{t.privateChat}</p>
+                <p className="text-purple-300 text-sm">{t.privateChatDesc}</p>
               </div>
             </button>
 
@@ -259,8 +256,8 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
                 </svg>
               </div>
               <div>
-                <p className="text-white font-semibold">Беседа</p>
-                <p className="text-purple-300 text-sm">Общайтесь с группой друзей</p>
+                <p className="text-white font-semibold">{t.groupChat}</p>
+                <p className="text-purple-300 text-sm">{t.groupChatDesc}</p>
               </div>
             </button>
 
@@ -275,21 +272,21 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
                 </svg>
               </div>
               <div>
-                <p className="text-white font-semibold">Канал</p>
-                <p className="text-purple-300 text-sm">Публичный канал для подписчиков</p>
+                <p className="text-white font-semibold">{t.channelChat}</p>
+                <p className="text-purple-300 text-sm">{t.channelChatDesc}</p>
               </div>
             </button>
           </div>
         )}
 
-        {/* Step 2: Выбор пользователя для приватного чата */}
+        {/* Step 2: choose user for private chat */}
         {step === 'select' && chatType === 'private' && (
           <>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t.searchUser || 'Поиск пользователей...'}
+              placeholder={t.searchByUsername}
               className="w-full px-4 py-2 bg-white/10 border border-purple-300/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 mb-4"
               autoFocus
             />
@@ -297,7 +294,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
             <div className="max-h-96 overflow-y-auto mb-4 space-y-2">
               {filteredUsers.length === 0 ? (
                 <p className="text-purple-300 text-center py-4">
-                  {searchQuery ? 'Пользователь не найден' : 'Нет пользователей'}
+                  {searchQuery ? t.userNotFoundShort : t.noUsersAvailable}
                 </p>
               ) : (
                 filteredUsers.map(u => (
@@ -310,12 +307,13 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
                         : 'bg-white/10 hover:bg-white/20'
                     }`}
                   >
-                    <Avatar userId={u.id} name={u.username} size="sm" src={u.avatar} />
-                    <div className="flex items-center gap-2 flex-1">
-                      <p className="text-white font-medium">{u.username}</p>
+                    <Avatar userId={u.id} name={getUserDisplayName(u, t.userUnknown)} size="sm" src={u.avatar} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium">{getUserDisplayName(u, t.userUnknown)}</p>
+                      {getUserUsernameLabel(u) && <p className="text-xs text-purple-300">{getUserUsernameLabel(u)}</p>}
                       {u.id === ADMIN_ID && (
                         <span className="text-xs bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-1.5 py-0.5 rounded-full">
-                          ADMIN
+                          {t.admin}
                         </span>
                       )}
                     </div>
@@ -326,34 +324,34 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
           </>
         )}
 
-        {/* Step 3: Детали для группы */}
+        {/* Step 3: group details */}
         {step === 'details' && chatType === 'group' && (
           <>
             <input
               type="text"
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
-              placeholder="Название беседы"
+              placeholder={t.enterGroupName}
               className="w-full px-4 py-2 bg-white/10 border border-purple-300/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 mb-4"
               autoFocus
             />
             
             <p className="text-purple-200 mb-2 text-sm">
-              Выберите участников (минимум 2)
+              {t.chooseParticipants}
             </p>
             
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск пользователей..."
+              placeholder={t.searchByUsername}
               className="w-full px-4 py-2 bg-white/10 border border-purple-300/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 mb-4"
             />
             
             <div className="max-h-64 overflow-y-auto mb-4 space-y-2">
               {filteredUsers.length === 0 ? (
                 <p className="text-purple-300 text-center py-4">
-                  {searchQuery ? 'Пользователь не найден' : 'Нет пользователей'}
+                  {searchQuery ? t.userNotFoundShort : t.noUsersAvailable}
                 </p>
               ) : (
                 filteredUsers.map(u => (
@@ -366,12 +364,13 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
                         : 'bg-white/10 hover:bg-white/20'
                     }`}
                   >
-                    <Avatar userId={u.id} name={u.username} size="sm" src={u.avatar} />
-                    <div className="flex items-center gap-2 flex-1">
-                      <p className="text-white font-medium">{u.username}</p>
+                    <Avatar userId={u.id} name={getUserDisplayName(u, t.userUnknown)} size="sm" src={u.avatar} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium">{getUserDisplayName(u, t.userUnknown)}</p>
+                      {getUserUsernameLabel(u) && <p className="text-xs text-purple-300">{getUserUsernameLabel(u)}</p>}
                       {u.id === ADMIN_ID && (
                         <span className="text-xs bg-gradient-to-r from-yellow-500 to-amber-500 text-white px-1.5 py-0.5 rounded-full">
-                          ADMIN
+                          {t.admin}
                         </span>
                       )}
                     </div>
@@ -387,14 +386,14 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
           </>
         )}
 
-        {/* Step 3 для канала - только название */}
+        {/* Step 3 for channel - name only */}
         {step === 'details' && chatType === 'channel' && (
           <>
             <input
               type="text"
               value={channelName}
               onChange={(e) => setChannelName(e.target.value)}
-              placeholder="Название канала"
+              placeholder={t.enterChannelName}
               className="w-full px-4 py-2 bg-white/10 border border-purple-300/30 rounded-lg text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 mb-4"
               autoFocus
             />
@@ -412,7 +411,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
               onClick={() => setStep('type')}
               className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition"
             >
-              Назад
+              {t.back}
             </button>
           )}
           
@@ -426,7 +425,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
                   : 'bg-white/20 text-white/50 cursor-not-allowed'
               }`}
             >
-              {loading ? 'Создание...' : 'Создать чат'}
+              {loading ? t.createLoading : t.createChat}
             </button>
           )}
           
@@ -440,7 +439,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
                   : 'bg-white/20 text-white/50 cursor-not-allowed'
               }`}
             >
-              {loading ? 'Создание...' : 'Создать беседу'}
+              {loading ? t.createLoading : t.createConversation}
             </button>
           )}
           
@@ -454,7 +453,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
                   : 'bg-white/20 text-white/50 cursor-not-allowed'
               }`}
             >
-              {loading ? 'Создание...' : 'Создать канал'}
+              {loading ? t.createLoading : t.createChannel}
             </button>
           )}
         </div>

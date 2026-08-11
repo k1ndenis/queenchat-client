@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useAppSelector } from '../lib/redux/hooks';
+import { translations } from '../lib/locales';
 
 interface ImageViewerProps {
   images: string[];
@@ -9,6 +11,8 @@ interface ImageViewerProps {
 export default function ImageViewer({ images, initialIndex, onClose }: ImageViewerProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [currentImage, setCurrentImage] = useState(images[initialIndex]);
+  const language = useAppSelector(state => state.user.language);
+  const t = translations[language as keyof typeof translations];
 
   const goToNext = () => {
     if (currentIndex < images.length - 1) {
@@ -53,7 +57,7 @@ export default function ImageViewer({ images, initialIndex, onClose }: ImageView
         
         <img 
           src={currentImage} 
-          alt="Preview" 
+          alt={t.preview} 
           className="max-w-full max-h-[90vh] object-contain rounded-lg cursor-pointer"
         />
         

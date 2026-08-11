@@ -5,7 +5,6 @@ import { setUser, fetchMe } from '../lib/redux/slices/userSlice';
 import { fetchWithAuth } from '../lib/api';
 import Logo from './Logo';
 import PhoneInput from './PhoneInput';
-import Captcha from './Captcha';
 import { translations } from '../lib/locales';
 
 export default function Login() {
@@ -13,8 +12,6 @@ export default function Login() {
   const navigate = useNavigate();
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [captchaToken, setCaptchaToken] = useState('');
-  const [failedAttempts, setFailedAttempts] = useState(0);
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false,
@@ -33,28 +30,13 @@ export default function Login() {
     e.preventDefault();
     if (!phone || !password) return;
     
-    // Если уже были неудачные попытки, проверяем капчу
-    if (failedAttempts >= 1 && !captchaToken) {
-      setModal({
-        isOpen: true,
-        title: 'Ошибка',
-        message: 'Подтвердите, что вы не робот',
-      });
-      return;
-    }
-    
     setLoading(true);
     const apiUrl = import.meta.env.VITE_API_URL;
 
     try {
-      const body: any = { phone, password };
-      if (failedAttempts >= 1) {
-        body.captcha_token = captchaToken;
-      }
-      
       const response = await fetchWithAuth(`${apiUrl}/auth/login`, {
         method: 'POST',
-        body: JSON.stringify(body),
+        body: JSON.stringify({ phone, password }),
       });
       
       const data = await response.json();
@@ -64,17 +46,14 @@ export default function Login() {
         await dispatch(fetchMe());
         navigate('/chat');
       } else {
-        setFailedAttempts(prev => prev + 1);
-        setCaptchaToken(''); // Сбросить капчу при ошибке
         setModal({
           isOpen: true,
-          title: 'Ошибка входа',
-          message: data.detail || 'Неверный телефон или пароль',
+          title: t.loginError,
+          message: data.detail || t.invalidCredentials,
         });
       }
     } catch (error) {
       console.error('Login error:', error);
-      setFailedAttempts(prev => prev + 1);
       setModal({
         isOpen: true,
         title: t.connectionError,
@@ -94,7 +73,7 @@ export default function Login() {
               <Logo variant="full" />
             </div>
             <h1 className="text-3xl font-bold text-white">{t.welcome}</h1>
-            <p className="text-purple-200 mt-2">Введите телефон и пароль</p>
+            <p className="text-purple-200 mt-2">{t.loginToAccount}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -113,31 +92,14 @@ export default function Login() {
               />
             </div>
             
-            {/* Показываем капчу только после неудачных попыток */}
-            {failedAttempts >= 1 && (
-              <Captcha
-                onVerify={setCaptchaToken}
-                onExpire={() => setCaptchaToken('')}
-              />
-            )}
-            
             <button
               type="submit"
-              disabled={loading || !phone || !password || (failedAttempts >= 1 && !captchaToken)}
+              disabled={loading || !phone || !password}
               className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold rounded-xl hover:shadow-lg hover:shadow-purple-500/25 transition-all duration-300 hover:scale-[1.02] disabled:opacity-50 cursor-pointer"
             >
-              {loading ? 'Вход...' : t.login}
+              {loading ? t.loginLoading : t.login}
             </button>
           </form>
-
-          <div className="text-center mt-4">
-            <button
-              onClick={() => navigate('/forgot-password')}
-              className="text-purple-300 hover:text-white transition-colors duration-300 text-sm cursor-pointer"
-            >
-              Забыли пароль?
-            </button>
-          </div>
 
           <div className="text-center mt-6">
             <button

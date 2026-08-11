@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android status-bar icons must be a monochrome alpha mask.  This is the
+  QueenChat crown from the PWA mark, intentionally without its coloured orb
+  or white tile so Android can tint it correctly on every notification shade.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M3,7.25L7.05,10.25L11.1,4.1C11.5,3.5 12.5,3.5 12.9,4.1L16.95,10.25L21,7.25L18.3,18.1C18.17,18.63 17.69,19 17.14,19L6.86,19C6.31,19 5.83,18.63 5.7,18.1L3,7.25ZM7.24,13.35L8.18,16.25L15.82,16.25L16.76,13.35L14.94,14.7C14.42,15.09 13.68,14.98 13.29,14.46L12,12.74L10.71,14.46C10.32,14.98 9.58,15.09 9.06,14.7L7.24,13.35Z" />
+</vector>

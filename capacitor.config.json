@@ -1,13 +1,21 @@
 {
-  "appId": "com.queenchat.app",
+  "appId": "ru.queenchat.app",
   "appName": "QueenChat",
   "webDir": "dist",
   "server": {
     "url": "https://queenchat.ru",
-    "cleartext": true,
+    "cleartext": false,
     "androidScheme": "https"
   },
-  "android": {
-    "icon": "public/app-icon.webp"
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "backgroundColor": "#FFFFFF",
+      "showSpinner": false,
+      "androidScaleType": "CENTER_INSIDE"
+    },
+    "PushNotifications": {
+      "presentationOptions": []
+    }
   }
 }

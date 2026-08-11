@@ -26,7 +26,7 @@ export const fetchMe = createAsyncThunk(
       const response = await fetchWithAuth('/auth/me');
       
       if (!response.ok) {
-        throw new Error('Not authenticated');
+        return rejectWithValue({ unauthorized: response.status === 401 });
       }
       
       const data = await response.json();
@@ -38,7 +38,7 @@ export const fetchMe = createAsyncThunk(
       
       return data as User;
     } catch (error) {
-      return rejectWithValue(null);
+      return rejectWithValue({ unauthorized: false });
     }
   }
 );
@@ -48,8 +48,10 @@ const userSlice = createSlice({
   initialState,
   reducers: {
     setUser: (state, action: PayloadAction<User | null>) => {
-      if (action.payload?.avatar) {
-        action.payload.avatar = addVersionToAvatarUrl(action.payload.avatar);
+      if (action.payload) {
+        if (action.payload.avatar) {
+          action.payload.avatar = addVersionToAvatarUrl(action.payload.avatar);
+        }
       }
       state.user = action.payload;
       state.loading = false;
@@ -75,6 +77,7 @@ const userSlice = createSlice({
           action.payload.avatar = addVersionToAvatarUrl(action.payload.avatar);
         }
         state.user = { ...state.user, ...action.payload };
+        
       }
     },
     updateAvatarVersion: (state, action: PayloadAction<string>) => {
@@ -91,14 +94,16 @@ const userSlice = createSlice({
   extraReducers: (builder) => {
     builder
       .addCase(fetchMe.pending, (state) => {
-        state.loading = true;
+        if (!state.user) state.loading = true;
       })
       .addCase(fetchMe.fulfilled, (state, action) => {
         state.user = action.payload;
         state.loading = false;
       })
-      .addCase(fetchMe.rejected, (state) => {
-        state.user = null;
+      .addCase(fetchMe.rejected, (state, action) => {
+        // A cached session remains usable offline. Only an explicit 401 invalidates it.
+        const unauthorized = (action.payload as { unauthorized?: boolean } | undefined)?.unauthorized;
+        if (unauthorized || !state.user) state.user = null;
         state.loading = false;
       });
   },

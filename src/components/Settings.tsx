@@ -4,6 +4,49 @@ import { useAppSelector, useAppDispatch } from '../lib/redux/hooks';
 import { logout, setLanguage } from '../lib/redux/slices/userSlice';
 import LoadingScreen from './LoadingScreen';
 import { translations } from '../lib/locales';
+import { getNotificationPreferences, saveNotificationPreferences, requestFCMToken, removeFCMToken } from '../lib/firebase';
+import { clearUserCache } from '../lib/cache';
+
+const notificationCopy = {
+  ru: {
+    notifications: 'Уведомления',
+    all: 'Все уведомления',
+    direct: 'Личные сообщения',
+    messages: 'Сообщения',
+    groups: 'Группы',
+    channels: 'Каналы',
+    calls: 'Звонки',
+    reactions: 'Реакции на мои сообщения',
+    sound: 'Звук',
+    vibration: 'Вибрация',
+    preview: 'Предпросмотр текста',
+    dnd: 'Не беспокоить',
+    temporaryMute: 'Временно отключить',
+    off: 'Выключено',
+    oneHour: '1 час',
+    eightHours: '8 часов',
+    oneDay: '1 день',
+  },
+  en: {
+    notifications: 'Notifications',
+    all: 'All notifications',
+    direct: 'Direct messages',
+    messages: 'Messages',
+    groups: 'Groups',
+    channels: 'Channels',
+    calls: 'Calls',
+    reactions: 'Reactions to my messages',
+    sound: 'Sound',
+    vibration: 'Vibration',
+    preview: 'Text preview',
+    dnd: 'Do not disturb',
+    temporaryMute: 'Temporary mute',
+    off: 'Off',
+    oneHour: '1 hour',
+    eightHours: '8 hours',
+    oneDay: '1 day',
+  },
+};
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -11,6 +54,7 @@ export default function Settings() {
   const { user, language: reduxLanguage } = useAppSelector(state => state.user);
   const [loading, setLoading] = useState(true);
   const [selectedLanguage, setSelectedLanguage] = useState(reduxLanguage);
+  const [notificationPreferences, setNotificationPreferences] = useState(getNotificationPreferences());
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false,
     title: '',
@@ -36,13 +80,16 @@ export default function Settings() {
         setSelectedLanguage(settings.language);
       }
     }
+    setNotificationPreferences(getNotificationPreferences());
     
     setLoading(false);
   }, [user, navigate]);
 
   const saveSettings = () => {
+    const savedNotificationPreferences = saveNotificationPreferences(notificationPreferences);
     const settings = {
       language: selectedLanguage,
+      notifications: savedNotificationPreferences,
     };
     localStorage.setItem('queenchat_settings', JSON.stringify(settings));
     
@@ -53,9 +100,22 @@ export default function Settings() {
       title: t.success,
       message: t.settingsSaved,
     });
+    requestFCMToken().catch(() => {});
   };
 
-  const handleLogout = () => {
+  const updateNotificationPreference = <K extends keyof typeof notificationPreferences>(
+    key: K,
+    value: typeof notificationPreferences[K],
+  ) => {
+    setNotificationPreferences(prev => ({ ...prev, [key]: value }));
+  };
+
+  const until = (hours: number | null) => hours ? Date.now() + hours * 60 * 60 * 1000 : null;
+  const n = notificationCopy[selectedLanguage as keyof typeof notificationCopy] || notificationCopy.ru;
+
+  const handleLogout = async () => {
+    await removeFCMToken();
+    if (user) await clearUserCache(user.id);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     dispatch(logout());
@@ -72,10 +132,10 @@ export default function Settings() {
         <div className="bg-white/5 backdrop-blur-sm border-b border-white/10 px-6 py-4">
           <div className="max-w-4xl mx-auto flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => navigate('/chat')}
-                className="text-white hover:text-purple-300 transition-colors cursor-pointer p-2 rounded-lg hover:bg-white/10"
-                title={t.back}
+                <button
+                  onClick={() => navigate('/chat')}
+                  className="text-white hover:text-purple-300 transition-colors cursor-pointer p-2 rounded-lg hover:bg-white/10"
+                  title={t.back}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="19" y1="12" x2="5" y2="12"/>
@@ -103,16 +163,77 @@ export default function Settings() {
             <div className="flex justify-between items-center py-3 border-b border-white/10">
               <div>
                 <p className="text-white font-medium">{t.language}</p>
-                <p className="text-purple-300 text-sm">Выберите язык интерфейса</p>
+                <p className="text-purple-300 text-sm">{t.languageDesc}</p>
               </div>
               <select
                 value={selectedLanguage}
                 onChange={(e) => setSelectedLanguage(e.target.value)}
                 className="px-3 py-1 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-purple-500"
               >
-                <option value="ru">Русский</option>
-                <option value="en">English</option>
+                <option value="ru">{t.languageRu}</option>
+                <option value="en">{t.languageEn}</option>
               </select>
+            </div>
+
+            <div className="py-5 border-b border-white/10">
+              <h3 className="text-white font-semibold mb-4">{n.notifications}</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  ['enabled', n.all],
+                  ['messages', n.messages],
+                  ['directMessages', n.direct],
+                  ['groups', n.groups],
+                  ['channels', n.channels],
+                  ['calls', n.calls],
+                  ['reactions', n.reactions],
+                  ['sound', n.sound],
+                  ['vibration', n.vibration],
+                  ['previewText', n.preview],
+                ].map(([key, label]) => (
+                  <label key={key} className="flex items-center justify-between gap-3 rounded-lg bg-white/5 px-3 py-2 text-sm text-purple-100">
+                    <span>{label}</span>
+                    <input
+                      type="checkbox"
+                      checked={Boolean(notificationPreferences[key as keyof typeof notificationPreferences])}
+                      onChange={(event) => updateNotificationPreference(
+                        key as keyof typeof notificationPreferences,
+                        event.target.checked as never,
+                      )}
+                      className="h-4 w-4 accent-purple-500"
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+                <label className="text-sm text-purple-100">
+                  <span className="block mb-2">{n.dnd}</span>
+                  <select
+                    value={notificationPreferences.doNotDisturbUntil ? '8' : ''}
+                    onChange={(event) => updateNotificationPreference('doNotDisturbUntil', until(event.target.value ? Number(event.target.value) : null))}
+                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="">{n.off}</option>
+                    <option value="1">{n.oneHour}</option>
+                    <option value="8">{n.eightHours}</option>
+                    <option value="24">{n.oneDay}</option>
+                  </select>
+                </label>
+
+                <label className="text-sm text-purple-100">
+                  <span className="block mb-2">{n.temporaryMute}</span>
+                  <select
+                    value={notificationPreferences.mutedUntil ? '1' : ''}
+                    onChange={(event) => updateNotificationPreference('mutedUntil', until(event.target.value ? Number(event.target.value) : null))}
+                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="">{n.off}</option>
+                    <option value="1">{n.oneHour}</option>
+                    <option value="8">{n.eightHours}</option>
+                    <option value="24">{n.oneDay}</option>
+                  </select>
+                </label>
+              </div>
             </div>
 
             <div className="flex gap-3 mt-6">
