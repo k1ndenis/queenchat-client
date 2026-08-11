@@ -22,6 +22,7 @@ import { getMessagePreview as getPreview } from '../lib/messagePreview';
 import { cacheChatBackgroundImage, getCachedChatBackgroundImage, hasChatBackgroundCache } from '../lib/chatBackgroundCache';
 import VoiceMessage from './messages/VoiceMessage';
 import VideoNote from './messages/VideoNote';
+import CreateSpaceModal from './CreateSpaceModal';
 
 const ALLOWED_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 const SWIPE_REPLY_THRESHOLD = 72;
@@ -115,6 +116,9 @@ export default function ChatRoom() {
   
   // ===== STATE =====
   const [chat, setChat] = useState<ChatInfo | null>(null);
+  const [spaceState, setSpaceState] = useState<{ status: 'not_created' | 'pending' | 'active'; can_accept?: boolean; created_by_me?: boolean } | null>(null);
+  const [showSpaceMenu, setShowSpaceMenu] = useState(false);
+  const [showCreateSpace, setShowCreateSpace] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [selectedImages, setSelectedImages] = useState<{ files: File[]; previews: string[] }>({ files: [], previews: [] });
@@ -277,6 +281,14 @@ export default function ChatRoom() {
   const isPrivate = chat?.chat_type === 'private';
   const isCreator = chat?.created_by === user?.id;
   const canChangeBackground = isPrivate || isCreator;
+
+  const refreshSpaceState = useCallback(async () => {
+    if (!id || !isPrivate) { setSpaceState(null); return; }
+    const response = await fetchWithAuth(`/spaces/${id}/state`);
+    if (response.ok) setSpaceState(await response.json());
+  }, [id, isPrivate]);
+
+  useEffect(() => { refreshSpaceState(); }, [refreshSpaceState]);
 
   const getChatColor = (chatType: string) => {
     switch (chatType) {
@@ -1937,12 +1949,6 @@ export default function ChatRoom() {
                   <polyline points="12 19 5 12 12 5"/>
                 </svg>
               </button>
-              {isPrivate && id && (
-                <button onClick={() => navigate(`/chat/${id}/space`)} className="rounded-xl bg-pink-500/15 px-3 py-2 text-sm font-medium text-pink-100 hover:bg-pink-500/25">
-                  💜 Наше пространство
-                </button>
-              )}
-
               {(isGroup || isChannel) ? (
                 <div className="flex items-center gap-3">
                   <div 
@@ -2072,6 +2078,8 @@ export default function ChatRoom() {
               )}
             </div>
             <div className="flex items-center gap-4">
+              {isPrivate && spaceState?.status === 'active' && id && <button onClick={() => navigate(`/chat/${id}/space`)} className="flex h-9 w-9 items-center justify-center rounded-xl text-lg text-pink-200 transition hover:bg-pink-500/15 hover:text-pink-100" title="Наше пространство" aria-label="Наше пространство">♡</button>}
+              {isPrivate && spaceState?.status !== 'active' && otherUser && <div className="relative"><button onClick={() => setShowSpaceMenu(v => !v)} className="flex h-9 w-9 items-center justify-center rounded-xl text-lg text-white/70 transition hover:bg-white/10 hover:text-white" title="Меню чата" aria-label="Меню чата">⋯</button>{showSpaceMenu && <div className="absolute right-0 top-11 z-40 w-64 rounded-2xl border border-white/15 bg-slate-900/95 p-2 shadow-2xl backdrop-blur-xl">{spaceState?.status === 'not_created' ? <button onClick={() => { setShowSpaceMenu(false); setShowCreateSpace(true); }} className="w-full rounded-xl px-3 py-3 text-left text-sm text-pink-100 hover:bg-white/10">♡ Создать пространство вместе</button> : spaceState?.can_accept ? <button onClick={async () => { const r = await fetchWithAuth(`/spaces/${id}/accept-pending`, { method: 'POST' }); if (r.ok) { await refreshSpaceState(); navigate(`/chat/${id}/space`); } }} className="w-full rounded-xl px-3 py-3 text-left text-sm text-pink-100 hover:bg-white/10">♡ Принять приглашение в пространство</button> : <p className="px-3 py-3 text-sm text-violet-200">Приглашение отправлено. Пространство появится после принятия.</p>}</div>}</div>}
               {canChangeBackground && <button
                 type="button"
                 onClick={openBackgroundSettings}
@@ -2516,6 +2524,8 @@ export default function ChatRoom() {
           </div>
         )}
       </div>
+
+      {id && <CreateSpaceModal open={showCreateSpace} chatId={id} me={user} other={otherUser} onClose={() => setShowCreateSpace(false)} onCreated={refreshSpaceState} />}
 
       {isCompactViewport && activeMenuMessageData && !isMessageDeleted(activeMenuMessageData) && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setActiveMessageMenu(null)}>

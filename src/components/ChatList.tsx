@@ -12,7 +12,6 @@ import Logo from './Logo';
 import Avatar from './Avatar';
 import CreateChatModal from './CreateChatModal';
 import ChannelSearch from './ChannelSearch';
-import CreateSpaceModal from './CreateSpaceModal';
 import { getCachedChatList, setCachedChatList } from '../lib/cache';
 import { getUserDisplayName } from '../lib/userDisplay';
 import { getMessagePreview } from '../lib/messagePreview';
@@ -28,7 +27,6 @@ export default function ChatList() {
   const [loading, setLoading] = useState(true);
   const [hasCachedChats, setHasCachedChats] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [isSpaceModalOpen, setIsSpaceModalOpen] = useState(false);
   const [actionChatId, setActionChatId] = useState<string | null>(null);
   const [actionType, setActionType] = useState<'delete' | 'leave' | 'unsubscribe' | null>(null);
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string }>({
@@ -618,7 +616,6 @@ export default function ChatList() {
         <div className="max-w-4xl mx-auto px-6 py-6">
           {/* Action Buttons */}
           <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-50">
-            <button onClick={() => setIsSpaceModalOpen(true)} className="h-14 rounded-full bg-gradient-to-r from-violet-500 to-pink-500 px-4 text-sm font-semibold text-white shadow-lg hover:scale-105" title="Создать пространство">💜</button>
             <button
               onClick={() => setIsCreateModalOpen(true)}
               className="w-14 h-14 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 shadow-lg flex items-center justify-center hover:scale-105 transition duration-300 hover:shadow-xl"
@@ -845,7 +842,6 @@ export default function ChatList() {
         onClose={() => setIsCreateModalOpen(false)}
         onChatCreated={handleChatCreated}
       />
-      <CreateSpaceModal open={isSpaceModalOpen} onClose={() => setIsSpaceModalOpen(false)} />
 
       {actionChatId && actionType && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
