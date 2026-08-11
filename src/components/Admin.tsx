@@ -113,7 +113,7 @@ function Stat({
   tone = "from-violet-600 to-fuchsia-600",
 }: {
   title: string;
-  value?: number;
+  value?: number | string;
   tone?: string;
 }) {
   return (
@@ -347,6 +347,7 @@ function Dashboard() {
   const [metric, setMetric] = useState<AnalyticsMetric>("registrations");
   const [analytics, setAnalytics] = useState<Analytics>();
   const [analyticsError, setAnalyticsError] = useState("");
+  const [monitoring, setMonitoring] = useState<Record<string, unknown>>();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   useEffect(() => {
@@ -354,6 +355,9 @@ function Dashboard() {
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then(setData)
       .catch(() => setData({}));
+  }, []);
+  useEffect(() => {
+    fetchWithAuth("/admin/monitoring-summary").then((r) => r.ok ? r.json() : undefined).then(setMonitoring).catch(() => setMonitoring({ available: false }));
   }, []);
   useEffect(() => {
     if (period === "custom" && (!from || !to)) return;
@@ -425,6 +429,10 @@ function Dashboard() {
           title="Групп / каналов"
           value={(data?.groups_total || 0) + (data?.channels_total || 0)}
         />
+      </div>
+      <div className="mt-6 rounded-2xl border border-cyan-300/20 bg-cyan-950/20 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold text-white">Monitoring</h2><p className="text-sm text-cyan-100">Краткая техническая сводка; детализация живёт в Grafana.</p></div>{typeof monitoring?.grafana_url === "string" && monitoring.grafana_url && <a className="rounded-xl bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950" href={monitoring.grafana_url} target="_blank" rel="noreferrer">Открыть Grafana</a>}</div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Stat title="API" value={monitoring?.available ? String(monitoring.api === "healthy" ? "Healthy" : "Unavailable") : "Недоступно"}/><Stat title="RPS" value={typeof monitoring?.rps === "number" ? (monitoring.rps as number).toFixed(2) : "—"}/><Stat title="p95" value={typeof monitoring?.p95 === "number" ? `${((monitoring.p95 as number) * 1000).toFixed(0)} ms` : "—"}/><Stat title="5xx" value={typeof monitoring?.errors_5xx_percent === "number" ? `${(monitoring.errors_5xx_percent as number).toFixed(2)}%` : "—"}/><Stat title="CPU" value={typeof monitoring?.cpu_percent === "number" ? `${(monitoring.cpu_percent as number).toFixed(0)}%` : "—"}/><Stat title="RAM available" value={typeof monitoring?.ram_available_percent === "number" ? `${(monitoring.ram_available_percent as number).toFixed(0)}%` : "—"}/><Stat title="Disk" value={typeof monitoring?.disk_used_percent === "number" ? `${(monitoring.disk_used_percent as number).toFixed(0)}%` : "—"}/><Stat title="Active WS" value={monitoring?.active_ws as number | undefined}/></div>
       </div>
       <div className="mt-6 rounded-2xl border border-white/10 bg-white/[.06] p-4 backdrop-blur-xl sm:p-5">
         <h2 className="font-semibold text-white">Активность</h2>
