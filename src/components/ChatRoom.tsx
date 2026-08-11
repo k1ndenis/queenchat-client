@@ -119,6 +119,7 @@ export default function ChatRoom() {
   const [spaceState, setSpaceState] = useState<{ status: 'not_created' | 'pending' | 'active'; can_accept?: boolean; created_by_me?: boolean } | null>(null);
   const [showSpaceMenu, setShowSpaceMenu] = useState(false);
   const [showCreateSpace, setShowCreateSpace] = useState(false);
+  const [dismissSpaceInvite, setDismissSpaceInvite] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [selectedImages, setSelectedImages] = useState<{ files: File[]; previews: string[] }>({ files: [], previews: [] });
@@ -2094,6 +2095,15 @@ export default function ChatRoom() {
             </div>
           </div>
         </div>
+
+        {isPrivate && spaceState?.status === 'pending' && spaceState.can_accept && !dismissSpaceInvite && otherUser && (
+          <div className="absolute inset-x-0 top-[calc(var(--chat-header-height,72px)+10px)] z-20 mx-auto w-[min(92%,30rem)] rounded-3xl border border-pink-200/20 bg-gradient-to-r from-violet-950/95 to-pink-950/95 p-4 shadow-2xl backdrop-blur-xl">
+            <p className="text-xs font-medium tracking-wide text-pink-200">ПРИГЛАШЕНИЕ В ПРОСТРАНСТВО</p>
+            <p className="mt-1 text-sm text-white"><b>{getUserDisplayName(otherUser, t.userUnknown)}</b> приглашает тебя в общее пространство ♡</p>
+            <p className="mt-1 text-xs text-violet-200">Фотографии, моменты, заметки и планы — только для вас двоих.</p>
+            <div className="mt-3 flex gap-2"><button onClick={async () => { const r = await fetchWithAuth(`/spaces/${id}/accept-pending`, { method: 'POST' }); if (r.ok) { await refreshSpaceState(); navigate(`/chat/${id}/space`); } }} className="rounded-xl bg-pink-500 px-4 py-2 text-sm font-semibold">Принять</button><button onClick={() => setDismissSpaceInvite(true)} className="rounded-xl bg-white/10 px-4 py-2 text-sm">Не сейчас</button></div>
+          </div>
+        )}
 
         {/* MESSAGES */}
         <div className="absolute inset-0 z-10 overflow-hidden">
