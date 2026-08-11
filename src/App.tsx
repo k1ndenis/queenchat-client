@@ -776,7 +776,7 @@ function AppContent() {
         <Route path="/register" element={<Register />} />
         <Route path="/chat" element={<ChatList />} />
         <Route path="/chat/:id" element={<ChatRoom />} />
-        <Route path="/chat/:id/space" element={<SpacePage />} />
+        <Route path="/chat/:id/space/*" element={<SpacePage />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/admin/*" element={<Admin />} />
