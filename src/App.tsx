@@ -17,6 +17,8 @@ import UserProfile from './components/UserProfile';
 import IncomingCallModal from './components/IncomingCallModal';
 import VideoCallModal from './components/VideoCallModal';
 import Admin from './components/Admin';
+import InvitePage from './components/InvitePage';
+import SpacePage from './components/SpacePage';
 import { requestFCMToken, onFCMListener, updateServiceWorkerState } from './lib/firebase';
 import { savePendingIncomingCall } from './lib/firebase';
 import { chatSocket, globalSocket } from './lib/socket';
@@ -769,10 +771,12 @@ function AppContent() {
     <>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/invite/:token" element={<InvitePage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/chat" element={<ChatList />} />
         <Route path="/chat/:id" element={<ChatRoom />} />
+        <Route path="/chat/:id/space" element={<SpacePage />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/admin/*" element={<Admin />} />

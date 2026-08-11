@@ -65,7 +65,8 @@ export default function Register() {
       
       if (response.ok) {
         dispatch(setUser(data.user));
-        navigate('/chat');
+        const invite = sessionStorage.getItem('queenchat_pending_invite');
+        navigate(invite ? `/invite/${invite}` : '/chat');
       } else {
         setModal({
           isOpen: true,

@@ -1937,6 +1937,11 @@ export default function ChatRoom() {
                   <polyline points="12 19 5 12 12 5"/>
                 </svg>
               </button>
+              {isPrivate && id && (
+                <button onClick={() => navigate(`/chat/${id}/space`)} className="rounded-xl bg-pink-500/15 px-3 py-2 text-sm font-medium text-pink-100 hover:bg-pink-500/25">
+                  💜 Наше пространство
+                </button>
+              )}
 
               {(isGroup || isChannel) ? (
                 <div className="flex items-center gap-3">
