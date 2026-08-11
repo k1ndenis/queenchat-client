@@ -6,6 +6,7 @@ import { fetchWithAuth } from '../lib/api';
 import Logo from './Logo';
 import PhoneInput from './PhoneInput';
 import { translations } from '../lib/locales';
+import Captcha from './Captcha';
 
 export default function Register() {
   const dispatch = useAppDispatch();
@@ -15,6 +16,7 @@ export default function Register() {
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false,
     title: '',
@@ -57,7 +59,8 @@ export default function Register() {
           phone, 
           username, 
           display_name: displayName || username,
-          password
+          password,
+          turnstile_token: turnstileToken || undefined,
         }),
       });
       
@@ -112,6 +115,7 @@ export default function Register() {
                 {t.displayNameHint}
               </p>
             </div>
+            <Captcha onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />
             <div>
               <input
                 type="text"

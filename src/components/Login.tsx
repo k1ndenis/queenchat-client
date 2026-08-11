@@ -6,6 +6,7 @@ import { fetchWithAuth } from '../lib/api';
 import Logo from './Logo';
 import PhoneInput from './PhoneInput';
 import { translations } from '../lib/locales';
+import Captcha from './Captcha';
 
 export default function Login() {
   const dispatch = useAppDispatch();
@@ -13,6 +14,8 @@ export default function Login() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [challengeRequired, setChallengeRequired] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState('');
   const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string }>({
     isOpen: false,
     title: '',
@@ -36,7 +39,7 @@ export default function Login() {
     try {
       const response = await fetchWithAuth(`${apiUrl}/auth/login`, {
         method: 'POST',
-        body: JSON.stringify({ phone, password }),
+        body: JSON.stringify({ phone, password, turnstile_token: turnstileToken || undefined }),
       });
       
       const data = await response.json();
@@ -47,6 +50,7 @@ export default function Login() {
         const invite = sessionStorage.getItem('queenchat_pending_invite') || sessionStorage.getItem('queenchat_pending_chat_invite');
         navigate(invite ? `/invite/${invite}` : '/chat');
       } else {
+        if (response.headers.get('X-QueenChat-Challenge') === 'turnstile') setChallengeRequired(true);
         setModal({
           isOpen: true,
           title: t.loginError,
@@ -92,6 +96,7 @@ export default function Login() {
                 className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-purple-300/50 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition-all duration-300"
               />
             </div>
+            {challengeRequired && <Captcha onVerify={setTurnstileToken} onExpire={() => setTurnstileToken('')} />}
             
             <button
               type="submit"
