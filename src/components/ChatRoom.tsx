@@ -300,18 +300,18 @@ export default function ChatRoom() {
     }).then(items => setSavedMemoryIds(new Set((items || []).map((item: { message_id: string }) => item.message_id)))).catch(() => undefined);
   }, [id, spaceState?.status]);
 
-  const toggleMoment = async (message: Message) => {
+  const toggleSavedForUs = async (message: Message) => {
     if (!id || spaceState?.status !== 'active') return;
     const saved = savedMemoryIds.has(message.id);
     const response = await fetchWithAuth(`/spaces/${id}/memories/${message.id}`, { method: saved ? 'DELETE' : 'POST' });
-    if (!response.ok) return;
+    if (!response.ok) { setSpaceToast('Не удалось сохранить. Попробуйте ещё раз.'); return; }
     setSavedMemoryIds(previous => {
       const next = new Set(previous);
       if (saved) next.delete(message.id); else next.add(message.id);
       return next;
     });
     setActiveMessageMenu(null);
-    setSpaceToast(saved ? 'Убрано из моментов' : 'Сохранено в ваши моменты');
+    setSpaceToast(saved ? 'Убрано из сохранённого' : '✓ Сохранено');
     window.setTimeout(() => setSpaceToast(null), 2600);
   };
 
@@ -2103,7 +2103,7 @@ export default function ChatRoom() {
               )}
             </div>
             <div className="flex shrink-0 items-center gap-2 md:gap-4">
-              {isPrivate && otherUser && <div className="relative"><button onClick={() => setShowSpaceMenu(v => !v)} className="flex h-9 w-9 items-center justify-center rounded-xl text-lg text-white/70 transition hover:bg-white/10 hover:text-white" title="Меню чата" aria-label="Меню чата">⋯</button>{showSpaceMenu && <div className="absolute right-0 top-11 z-40 w-64 rounded-2xl border border-white/15 bg-slate-900/95 p-2 shadow-2xl backdrop-blur-xl">{spaceState?.status === 'not_created' ? <button onClick={() => { setShowSpaceMenu(false); setShowCreateSpace(true); }} className="w-full rounded-xl px-3 py-3 text-left text-sm text-pink-100 hover:bg-white/10">Создать пространство вместе</button> : spaceState?.status === 'pending' && spaceState?.can_accept ? <button onClick={async () => { const r = await fetchWithAuth(`/spaces/${id}/accept-pending`, { method: 'POST' }); if (r.ok) { await refreshSpaceState(); setShowSpaceMenu(false); } }} className="w-full rounded-xl px-3 py-3 text-left text-sm text-pink-100 hover:bg-white/10">Принять приглашение</button> : spaceState?.status === 'pending' ? <p className="px-3 py-3 text-sm text-violet-200">Приглашение отправлено</p> : <><button onClick={() => { setShowSpaceMenu(false); navigate(`/chat/${id}/space`); }} className="w-full rounded-xl px-3 py-3 text-left text-sm text-pink-100 hover:bg-white/10">Наше пространство</button><button onClick={() => { setShowSpaceMenu(false); navigate(`/chat/${id}/space/dates`); }} className="w-full rounded-xl px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10">Важные даты</button><button onClick={() => { setShowSpaceMenu(false); navigate(`/chat/${id}/space/memories`); }} className="w-full rounded-xl px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10">Моменты</button><button onClick={() => { setShowSpaceMenu(false); navigate(`/chat/${id}/space/notes`); }} className="w-full rounded-xl px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10">Заметки и планы</button></>}</div>}</div>}
+              {isPrivate && otherUser && <div className="relative"><button onClick={() => setShowSpaceMenu(v => !v)} className="flex h-9 w-9 items-center justify-center rounded-xl text-lg text-white/70 transition hover:bg-white/10 hover:text-white" title="Меню чата" aria-label="Меню чата">⋯</button>{showSpaceMenu && <div className="absolute right-0 top-11 z-40 w-64 rounded-2xl border border-white/15 bg-slate-900/95 p-2 shadow-2xl backdrop-blur-xl">{spaceState?.status === 'not_created' ? <button onClick={() => { setShowSpaceMenu(false); setShowCreateSpace(true); }} className="w-full rounded-xl px-3 py-3 text-left text-sm text-pink-100 hover:bg-white/10">Создать пространство вместе</button> : spaceState?.status === 'pending' && spaceState?.can_accept ? <button onClick={async () => { const r = await fetchWithAuth(`/spaces/${id}/accept-pending`, { method: 'POST' }); if (r.ok) { await refreshSpaceState(); setShowSpaceMenu(false); } }} className="w-full rounded-xl px-3 py-3 text-left text-sm text-pink-100 hover:bg-white/10">Принять приглашение</button> : spaceState?.status === 'pending' ? <p className="px-3 py-3 text-sm text-violet-200">Приглашение отправлено</p> : <><button onClick={() => { setShowSpaceMenu(false); navigate(`/chat/${id}/space`); }} className="w-full rounded-xl px-3 py-3 text-left text-sm text-pink-100 hover:bg-white/10">Наше пространство</button><button onClick={() => { setShowSpaceMenu(false); navigate(`/chat/${id}/space/dates`); }} className="w-full rounded-xl px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10">Важные даты</button><button onClick={() => { setShowSpaceMenu(false); navigate(`/chat/${id}/space/memories`); }} className="w-full rounded-xl px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10">Сохранённое</button><button onClick={() => { setShowSpaceMenu(false); navigate(`/chat/${id}/space/notes`); }} className="w-full rounded-xl px-3 py-2 text-left text-sm text-white/80 hover:bg-white/10">Заметки и планы</button></>}</div>}</div>}
               {canChangeBackground && <button
                 type="button"
                 onClick={openBackgroundSettings}
@@ -2344,9 +2344,9 @@ export default function ChatRoom() {
                                       <ForwardIcon />
                                       <span>{t.forward}</span>
                                     </button>
-                                    {isPrivate && spaceState?.status === 'active' && imageUrls.length > 0 && (
-                                      <button type="button" onClick={() => void toggleMoment(msg)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-pink-100 transition hover:bg-purple-500/25">
-                                        <span>♡</span><span>{savedMemoryIds.has(msg.id) ? 'Убрать из моментов' : 'Сохранить момент'}</span>
+                                    {isPrivate && spaceState?.status === 'active' && !msg.deleted_at && Boolean(msg.content?.trim() || imageUrls.length || msg.media) && (
+                                      <button type="button" onClick={() => void toggleSavedForUs(msg)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-pink-100 transition hover:bg-purple-500/25">
+                                        <span>♡</span><span>{savedMemoryIds.has(msg.id) ? 'Убрать из сохранённого' : 'Сохранить для нас'}</span>
                                       </button>
                                     )}
                                     {canEditMessage(msg) && (
@@ -2593,9 +2593,9 @@ export default function ChatRoom() {
                 <ForwardIcon />
                 <span>{t.forward}</span>
               </button>
-              {isPrivate && spaceState?.status === 'active' && parseImages(activeMenuMessageData).length > 0 && (
-                <button type="button" onClick={() => void toggleMoment(activeMenuMessageData)} className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-pink-100 transition hover:bg-white/10">
-                  <span>♡</span><span>{savedMemoryIds.has(activeMenuMessageData.id) ? 'Убрать из моментов' : 'Сохранить момент'}</span>
+              {isPrivate && spaceState?.status === 'active' && !activeMenuMessageData.deleted_at && Boolean(activeMenuMessageData.content?.trim() || parseImages(activeMenuMessageData).length || activeMenuMessageData.media) && (
+                <button type="button" onClick={() => void toggleSavedForUs(activeMenuMessageData)} className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-pink-100 transition hover:bg-white/10">
+                  <span>♡</span><span>{savedMemoryIds.has(activeMenuMessageData.id) ? 'Убрать из сохранённого' : 'Сохранить для нас'}</span>
                 </button>
               )}
               {canEditMessage(activeMenuMessageData) && (
