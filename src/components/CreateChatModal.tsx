@@ -29,6 +29,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
   const [channelName, setChannelName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState('');
 
   const ADMIN_ID = '33f676d7-9ab6-4eaa-b3c4-d4552b499f58';
 
@@ -78,6 +79,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
     setGroupName('');
     setChannelName('');
     setError('');
+    setInviteUrl('');
   };
 
   const handleClose = () => {
@@ -124,6 +126,16 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
     } finally {
       setLoading(false);
     }
+  };
+
+  const createChatInvite = async () => {
+    setLoading(true); setError('');
+    try {
+      const response = await fetchWithAuth('/chats/invites', { method: 'POST' });
+      if (!response.ok) throw new Error((await response.json()).detail || 'Не удалось создать приглашение');
+      const data = await response.json(); setInviteUrl(data.invite_url);
+    } catch (error) { setError(error instanceof Error ? error.message : 'Не удалось создать приглашение'); }
+    finally { setLoading(false); }
   };
 
   const handleCreateGroup = async () => {
@@ -320,6 +332,10 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
                   </div>
                 ))
               )}
+            </div>
+            <div className="border-t border-white/10 pt-4 text-center">
+              <p className="text-sm text-purple-200">Нужного человека ещё нет в QueenChat?</p>
+              {inviteUrl ? <div className="mt-3"><input readOnly value={inviteUrl} className="w-full rounded-lg bg-white/10 px-3 py-2 text-xs text-white" /><button onClick={() => navigator.clipboard.writeText(inviteUrl)} className="mt-2 rounded-lg bg-white/10 px-3 py-2 text-sm">Скопировать ссылку</button></div> : <button onClick={() => void createChatInvite()} disabled={loading} className="mt-2 text-sm text-pink-200 underline disabled:opacity-50">Пригласить человека в QueenChat</button>}
             </div>
           </>
         )}
