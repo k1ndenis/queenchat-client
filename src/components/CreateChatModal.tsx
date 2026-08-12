@@ -218,10 +218,18 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-gradient-to-br from-slate-800 to-purple-900 rounded-2xl p-6 w-full max-w-md mx-4 max-h-[80vh] overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 backdrop-blur-sm sm:p-4"
+      style={{
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+        paddingRight: 'max(0.75rem, env(safe-area-inset-right))',
+        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+        paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
+      }}
+    >
+      <div role="dialog" aria-modal="true" className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800 to-purple-900 p-5 shadow-2xl sm:max-h-[80vh] sm:p-6">
         {/* Header */}
-        <div className="flex justify-between items-center mb-4">
+        <div className="mb-4 flex shrink-0 items-center justify-between gap-4">
           <h2 className="text-2xl font-bold text-white">
             {step === 'type' && t.createChat}
             {step === 'select' && chatType === 'private' && t.selectUser}
@@ -235,6 +243,8 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
             ×
           </button>
         </div>
+
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
 
         {/* Step 1: choose chat type */}
         {step === 'type' && (
@@ -333,9 +343,19 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
                 ))
               )}
             </div>
-            <div className="border-t border-white/10 pt-4 text-center">
-              <p className="text-sm text-purple-200">Нужного человека ещё нет в QueenChat?</p>
-              {inviteUrl ? <div className="mt-3"><input readOnly value={inviteUrl} className="w-full rounded-lg bg-white/10 px-3 py-2 text-xs text-white" /><button onClick={() => navigator.clipboard.writeText(inviteUrl)} className="mt-2 rounded-lg bg-white/10 px-3 py-2 text-sm">Скопировать ссылку</button></div> : <button onClick={() => void createChatInvite()} disabled={loading} className="mt-2 text-sm text-pink-200 underline disabled:opacity-50">Пригласить человека в QueenChat</button>}
+            <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.06] p-3">
+              <p className="text-sm text-purple-100">Нужного человека ещё нет в QueenChat?</p>
+              {inviteUrl ? (
+                <div className="mt-3 space-y-2">
+                  <label className="block text-left text-xs font-medium text-purple-200">Ссылка-приглашение</label>
+                  <input readOnly value={inviteUrl} className="min-h-11 w-full rounded-lg border border-white/10 bg-slate-950/30 px-3 py-2 text-xs text-white" />
+                  <button onClick={() => navigator.clipboard.writeText(inviteUrl)} className="min-h-11 w-full rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white transition hover:bg-white/20">Скопировать ссылку</button>
+                </div>
+              ) : (
+                <button onClick={() => void createChatInvite()} disabled={loading} className="mt-3 min-h-11 w-full rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-pink-100 transition hover:bg-white/20 disabled:opacity-50">
+                  Пригласить человека в QueenChat
+                </button>
+              )}
             </div>
           </>
         )}
@@ -420,12 +440,14 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
           <p className="text-red-400 text-sm mb-4">{error}</p>
         )}
 
+        </div>
+
         {/* Navigation Buttons */}
-        <div className="flex gap-3">
+        <div className={`mt-4 shrink-0 border-t border-white/10 pt-4 ${step === 'type' ? 'hidden' : 'flex gap-3'}`}>
           {step !== 'type' && (
             <button
               onClick={() => setStep('type')}
-              className="flex-1 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition"
+              className="min-h-12 flex-1 rounded-lg bg-white/10 px-4 py-2 text-white transition hover:bg-white/20"
             >
               {t.back}
             </button>
@@ -435,7 +457,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
             <button
               onClick={handleCreatePrivate}
               disabled={!selectedUser || loading}
-              className={`flex-1 px-4 py-2 rounded-lg transition ${
+              className={`min-h-12 flex-1 rounded-lg px-4 py-2 transition ${
                 selectedUser && !loading
                   ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 cursor-pointer'
                   : 'bg-white/20 text-white/50 cursor-not-allowed'
@@ -449,7 +471,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
             <button
               onClick={handleCreateGroup}
               disabled={!groupName.trim() || selectedUsers.length < 2 || loading}
-              className={`flex-1 px-4 py-2 rounded-lg transition ${
+              className={`min-h-12 flex-1 rounded-lg px-4 py-2 transition ${
                 groupName.trim() && selectedUsers.length >= 2 && !loading
                   ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 cursor-pointer'
                   : 'bg-white/20 text-white/50 cursor-not-allowed'
@@ -463,7 +485,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
             <button
               onClick={handleCreateChannel}
               disabled={!channelName.trim() || loading}
-              className={`flex-1 px-4 py-2 rounded-lg transition ${
+              className={`min-h-12 flex-1 rounded-lg px-4 py-2 transition ${
                 channelName.trim() && !loading
                   ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 cursor-pointer'
                   : 'bg-white/20 text-white/50 cursor-not-allowed'
