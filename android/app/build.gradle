@@ -1,5 +1,47 @@
 apply plugin: 'com.android.application'
 
+import java.util.Properties
+import java.util.Locale
+
+// Signing material is deliberately local-only. Resolution order is Gradle
+// property, environment variable, then android/keystore.properties.
+def queenChatSigningProperties = new Properties()
+def queenChatSigningPropertiesFile = rootProject.file('keystore.properties')
+if (queenChatSigningPropertiesFile.exists()) {
+    queenChatSigningPropertiesFile.withInputStream { queenChatSigningProperties.load(it) }
+}
+def queenChatSigningValue = { String name ->
+    def value = project.findProperty(name)
+    if (value == null || value.toString().trim().isEmpty()) {
+        value = System.getenv(name)
+    }
+    if (value == null || value.toString().trim().isEmpty()) {
+        value = queenChatSigningProperties.getProperty(name)
+    }
+    return value == null ? null : value.toString().trim()
+}
+
+def queenChatKeystorePath = queenChatSigningValue('QUEENCHAT_KEYSTORE_PATH')
+def queenChatKeystorePassword = queenChatSigningValue('QUEENCHAT_KEYSTORE_PASSWORD')
+def queenChatKeyAlias = queenChatSigningValue('QUEENCHAT_KEY_ALIAS')
+def queenChatKeyPassword = queenChatSigningValue('QUEENCHAT_KEY_PASSWORD')
+def queenChatReleaseSigningReady = [
+        queenChatKeystorePath,
+        queenChatKeystorePassword,
+        queenChatKeyAlias,
+        queenChatKeyPassword
+].every { it != null && !it.isEmpty() }
+def requireQueenChatReleaseSigning = {
+    if (!queenChatReleaseSigningReady) {
+        throw new GradleException(
+                'Release signing is not configured. Set QUEENCHAT_KEYSTORE_PATH, ' +
+                'QUEENCHAT_KEYSTORE_PASSWORD, QUEENCHAT_KEY_ALIAS, and ' +
+                'QUEENCHAT_KEY_PASSWORD in the environment, ~/.gradle/gradle.properties, ' +
+                'or the ignored android/keystore.properties file.'
+        )
+    }
+}
+
 android {
     namespace = "ru.queenchat.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -17,8 +59,22 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (queenChatReleaseSigningReady) {
+                storeFile file(queenChatKeystorePath)
+                storePassword queenChatKeystorePassword
+                keyAlias queenChatKeyAlias
+                keyPassword queenChatKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            // This is a release variant even during the signing-key migration.
+            // It must never be distributed as a debuggable APK.
+            debuggable false
+            signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
@@ -52,3 +108,11 @@ if (!servicesJSON.exists() || servicesJSON.length() == 0) {
     throw new GradleException("Missing app/google-services.json. Native Firebase Cloud Messaging cannot work without the Firebase Android configuration.")
 }
 apply plugin: 'com.google.gms.google-services'
+
+// This also protects broad tasks such as `assemble`: an incompletely
+// configured release must fail instead of leaving an unsigned artifact.
+tasks.configureEach { task ->
+    if (task.name.toLowerCase(Locale.ROOT).contains('release')) {
+        task.doFirst { requireQueenChatReleaseSigning() }
+    }
+}
