@@ -36,7 +36,9 @@ async function copyInvitation(text: string) {
 /** Opens the operating-system share sheet, or copies the full invitation if unavailable. */
 export async function shareQueenChat(language: QueenChatShareLanguage): Promise<'shared' | 'copied'> {
   const text = getQueenChatInvitation(language);
-  const payload = { title: 'QueenChat', text, url: WEB_URL };
+  // The invitation text already contains both URLs.  Passing `url` as well
+  // makes Android share sheets append WEB_URL to the text a second time.
+  const payload = { title: 'QueenChat', text };
 
   if (Capacitor.isNativePlatform()) {
     try {
