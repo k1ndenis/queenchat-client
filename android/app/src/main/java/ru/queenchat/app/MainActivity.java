@@ -3,8 +3,10 @@ package ru.queenchat.app;
 import android.content.Intent;
 import android.content.Context;
 import android.graphics.Color;
+import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.RippleDrawable;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -23,7 +25,11 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 import androidx.coordinatorlayout.widget.CoordinatorLayout;
@@ -38,7 +44,12 @@ import com.getcapacitor.BridgeWebViewClient;
 
 public class MainActivity extends BridgeActivity {
     private static final String TRUSTED_HOST = "queenchat.ru";
-    private static final int SYSTEM_BAR_COLOR = Color.rgb(46, 16, 101);
+    // Mirrors the web shell: bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900.
+    private static final int SYSTEM_BAR_COLOR = Color.rgb(15, 23, 42);
+    private static final int SURFACE_START = Color.rgb(15, 23, 42);
+    private static final int SURFACE_MID = Color.rgb(46, 16, 101);
+    private static final int TEXT_SECONDARY = Color.rgb(233, 213, 255); // purple-200
+    private static final int TEXT_MUTED = Color.rgb(167, 139, 250); // purple-400
     private static final String START_URL = "https://queenchat.ru/";
     private static final long NETWORK_RETRY_DEBOUNCE_MS = 900L;
     private static final long AUTO_RETRY_MIN_INTERVAL_MS = 5_000L;
@@ -52,6 +63,9 @@ public class MainActivity extends BridgeActivity {
     private View statusOverlay;
     private TextView statusTitle;
     private TextView statusMessage;
+    private TextView loadingBrand;
+    private TextView autoRecoveryHint;
+    private ProgressBar loadingIndicator;
     private Button retryButton;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private ConnectivityManager connectivityManager;
@@ -110,19 +124,19 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onStart() {
+    public void onStart() {
         super.onStart();
         registerNetworkCallback();
     }
 
     @Override
-    protected void onStop() {
+    public void onStop() {
         unregisterNetworkCallback();
         super.onStop();
     }
 
     @Override
-    protected void onSaveInstanceState(Bundle outState) {
+    public void onSaveInstanceState(Bundle outState) {
         outState.putString(STATE_KEY, webState.name());
         outState.putString(URL_KEY, lastMainUrl);
         outState.putBoolean(SERVER_ERROR_KEY, temporaryServerError);
@@ -139,34 +153,67 @@ public class MainActivity extends BridgeActivity {
     private void createStatusOverlay() {
         CoordinatorLayout root = findViewById(R.id.capacitor_root);
         if (root == null || statusOverlay != null) return;
+        FrameLayout overlay = new FrameLayout(this);
+        GradientDrawable background = new GradientDrawable(
+            GradientDrawable.Orientation.TL_BR,
+            new int[] { SURFACE_START, SURFACE_MID, SURFACE_START }
+        );
+        overlay.setBackground(background);
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(true);
+        scrollView.setClipToPadding(false);
+        scrollView.setPadding(dp(24), dp(32), dp(24), dp(32));
+
+        LinearLayout viewport = new LinearLayout(this);
+        viewport.setOrientation(LinearLayout.VERTICAL);
+        viewport.setGravity(Gravity.CENTER);
+
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setGravity(Gravity.CENTER_HORIZONTAL);
-        panel.setPadding(dp(28), dp(28), dp(28), dp(28));
-        panel.setBackgroundColor(Color.rgb(15, 23, 42));
+        panel.setPadding(0, dp(12), 0, dp(12));
 
-        TextView logo = new TextView(this);
-        logo.setText("♛  QueenChat");
-        logo.setTextColor(Color.rgb(244, 114, 182));
-        logo.setTextSize(28);
-        logo.setGravity(Gravity.CENTER);
-        logo.setTypeface(null, 1);
-        panel.addView(logo, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        ImageView logo = new ImageView(this);
+        // This is QueenChat's shipped launcher foreground artwork, prepared from the web logo.
+        logo.setImageResource(R.mipmap.ic_launcher_foreground);
+        logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        logo.setContentDescription(null);
+        logo.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        panel.addView(logo, new LinearLayout.LayoutParams(dp(76), dp(76)));
+
+        loadingBrand = new TextView(this);
+        loadingBrand.setText("QueenChat");
+        loadingBrand.setTextColor(Color.WHITE);
+        loadingBrand.setTextSize(18);
+        loadingBrand.setGravity(Gravity.CENTER);
+        loadingBrand.setTypeface(null, 1);
+        LinearLayout.LayoutParams brandParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        brandParams.topMargin = dp(14);
+        panel.addView(loadingBrand, brandParams);
+
+        loadingIndicator = new ProgressBar(this, null, android.R.attr.progressBarStyleSmall);
+        loadingIndicator.setIndeterminateTintList(ColorStateList.valueOf(Color.rgb(192, 132, 252)));
+        LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(dp(24), dp(24));
+        progressParams.topMargin = dp(16);
+        panel.addView(loadingIndicator, progressParams);
 
         statusTitle = new TextView(this);
         statusTitle.setTextColor(Color.WHITE);
-        statusTitle.setTextSize(22);
+        statusTitle.setTextSize(23);
         statusTitle.setGravity(Gravity.CENTER);
         statusTitle.setTypeface(null, 1);
         LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        titleParams.topMargin = dp(22);
+        titleParams.topMargin = dp(24);
         panel.addView(statusTitle, titleParams);
 
         statusMessage = new TextView(this);
-        statusMessage.setTextColor(Color.rgb(196, 181, 253));
+        statusMessage.setTextColor(TEXT_SECONDARY);
         statusMessage.setTextSize(16);
         statusMessage.setGravity(Gravity.CENTER);
-        statusMessage.setLineSpacing(dp(3), 1f);
+        statusMessage.setLineSpacing(dp(4), 1f);
         LinearLayout.LayoutParams messageParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         messageParams.topMargin = dp(12);
         panel.addView(statusMessage, messageParams);
@@ -176,26 +223,42 @@ public class MainActivity extends BridgeActivity {
         retryButton.setTextColor(Color.WHITE);
         retryButton.setTextSize(16);
         GradientDrawable buttonBackground = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-            new int[] { Color.rgb(124, 58, 237), Color.rgb(217, 70, 239) });
-        buttonBackground.setCornerRadius(dp(14));
-        retryButton.setBackground(buttonBackground);
+            new int[] { Color.rgb(168, 85, 247), Color.rgb(236, 72, 153) });
+        buttonBackground.setCornerRadius(dp(12));
+        retryButton.setBackground(new RippleDrawable(
+            ColorStateList.valueOf(Color.argb(72, 255, 255, 255)), buttonBackground, null
+        ));
         retryButton.setAllCaps(false);
+        retryButton.setContentDescription("Повторить подключение");
+        retryButton.setMinHeight(dp(48));
         retryButton.setOnClickListener(view -> retryMainPage(true));
-        LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
-        buttonParams.topMargin = dp(26);
+        LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(dp(232), dp(50));
+        buttonParams.topMargin = dp(28);
         panel.addView(retryButton, buttonParams);
 
         TextView hint = new TextView(this);
-        hint.setText("QueenChat автоматически подключится, когда сеть восстановится.");
-        hint.setTextColor(Color.rgb(148, 163, 184));
+        hint.setText("QueenChat подключится автоматически,\nкогда сеть восстановится.");
+        hint.setTextColor(TEXT_MUTED);
         hint.setTextSize(13);
+        hint.setLineSpacing(dp(2), 1f);
         hint.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         hintParams.topMargin = dp(18);
         panel.addView(hint, hintParams);
+        autoRecoveryHint = hint;
 
-        root.addView(panel, new CoordinatorLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        statusOverlay = panel;
+        int contentWidth = Math.min(dp(336), getResources().getDisplayMetrics().widthPixels - dp(48));
+        viewport.addView(panel, new LinearLayout.LayoutParams(contentWidth, ViewGroup.LayoutParams.WRAP_CONTENT));
+        scrollView.addView(viewport, new ScrollView.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        overlay.addView(scrollView, new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        root.addView(overlay, new CoordinatorLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ));
+        statusOverlay = overlay;
     }
 
     private void setWebState(WebState state, boolean secureConnectionError) {
@@ -206,19 +269,29 @@ public class MainActivity extends BridgeActivity {
             return;
         }
         statusOverlay.setVisibility(View.VISIBLE);
-        retryButton.setVisibility(state == WebState.LOADING ? View.GONE : View.VISIBLE);
+        boolean loading = state == WebState.LOADING;
+        loadingBrand.setVisibility(loading ? View.VISIBLE : View.GONE);
+        loadingIndicator.setVisibility(loading ? View.VISIBLE : View.GONE);
+        retryButton.setVisibility(loading ? View.GONE : View.VISIBLE);
+        autoRecoveryHint.setVisibility(loading ? View.GONE : View.VISIBLE);
         if (state == WebState.LOADING) {
-            statusTitle.setText("Подключаемся к QueenChat");
-            statusMessage.setText("Пожалуйста, подождите...");
+            statusTitle.setVisibility(View.GONE);
+            statusMessage.setVisibility(View.GONE);
         } else if (secureConnectionError) {
+            statusTitle.setVisibility(View.VISIBLE);
+            statusMessage.setVisibility(View.VISIBLE);
             statusTitle.setText("Не удалось установить защищённое соединение");
-            statusMessage.setText("Проверьте дату и время на устройстве или попробуйте подключиться позже.");
+            statusMessage.setText("Проверьте подключение к интернету\nи попробуйте ещё раз.");
         } else if (temporaryServerError) {
+            statusTitle.setVisibility(View.VISIBLE);
+            statusMessage.setVisibility(View.VISIBLE);
             statusTitle.setText("QueenChat временно недоступен");
-            statusMessage.setText("Сервер временно не отвечает. Попробуйте ещё раз через некоторое время.");
+            statusMessage.setText("Мы уже пытаемся восстановить соединение.\nПопробуйте ещё раз через несколько секунд.");
         } else {
+            statusTitle.setVisibility(View.VISIBLE);
+            statusMessage.setVisibility(View.VISIBLE);
             statusTitle.setText("Не удалось подключиться");
-            statusMessage.setText("Проверьте подключение к интернету и попробуйте ещё раз.");
+            statusMessage.setText("Проверьте подключение к интернету\nи попробуйте ещё раз.");
         }
     }
 
