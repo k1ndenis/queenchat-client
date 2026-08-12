@@ -127,6 +127,33 @@ cd client/android
 Do not run release signing until the debug APK has been built and tested on a
 device.
 
+## In-app APK updates
+
+The native updater compares Android `versionCode` only. Increment it for every
+distributed APK; use `versionName` only as the human-readable semantic version.
+
+Production APKs must always use the same persistent release keystore. A debug
+APK is appropriate only for local tests: it cannot safely update production
+installs, and the updater deliberately does not fetch production updates from a
+debuggable install. Before the first in-app release, record the signing
+certificate fingerprint of the APK already distributed to users and verify that
+the new release APK has the same fingerprint:
+
+```bash
+apksigner verify --print-certs path/to/queenchat-release.apk
+```
+
+To publish a release after building and verifying its signed APK:
+
+```bash
+printf '%s\n' 'Исправлены сетевые ошибки' 'Обновлён экран офлайн' > /tmp/queenchat-changelog.txt
+./scripts/publish_android_release.sh path/to/queenchat-release.apk 2 1.1.0 1 false /tmp/queenchat-changelog.txt
+```
+
+The script writes an immutable versioned APK to `releases/` and atomically
+updates `android_release.json`. Do not reuse a versioned filename or publish a
+mandatory release until the signing chain has been verified on a device.
+
 ## What still must be tested on a device
 
 Building an APK is only a packaging check. Test these separately:

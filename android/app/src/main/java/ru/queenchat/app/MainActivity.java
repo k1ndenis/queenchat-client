@@ -74,6 +74,7 @@ public class MainActivity extends BridgeActivity {
     private boolean autoRetryScheduled;
     private long lastAutoRetryAt;
     private boolean temporaryServerError;
+    private AndroidUpdateManager updateManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -91,6 +92,7 @@ public class MainActivity extends BridgeActivity {
             temporaryServerError = savedInstanceState.getBoolean(SERVER_ERROR_KEY, false);
         }
         installWebViewFailureHandling();
+        updateManager = new AndroidUpdateManager(this);
 
         // Android 15+ enforces edge-to-edge for this app's target SDK.  Keep
         // rendering edge-to-edge, but reserve the actual system/IME insets for
@@ -130,9 +132,21 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
+    public void onResume() {
+        super.onResume();
+        if (updateManager != null) updateManager.onResume();
+    }
+
+    @Override
     public void onStop() {
         unregisterNetworkCallback();
         super.onStop();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (updateManager != null) updateManager.onDestroy();
+        super.onDestroy();
     }
 
     @Override
@@ -311,6 +325,7 @@ public class MainActivity extends BridgeActivity {
     private void mainNavigationFinished(String url) {
         if (!isMainQueenChatUrl(url) || webState == WebState.NETWORK_ERROR) return;
         setWebState(WebState.CONTENT, false);
+        if (updateManager != null) updateManager.checkAfterStartup();
     }
 
     private void mainNavigationFailed(String url, String reason, boolean secureConnectionError) {
