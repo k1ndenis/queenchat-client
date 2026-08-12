@@ -227,7 +227,7 @@ export default function CreateChatModal({ isOpen, onClose, onChatCreated }: Crea
         paddingLeft: 'max(0.75rem, env(safe-area-inset-left))',
       }}
     >
-      <div role="dialog" aria-modal="true" className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800 to-purple-900 p-5 shadow-2xl sm:max-h-[80vh] sm:p-6">
+      <div role="dialog" aria-modal="true" className="flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-2xl bg-gradient-to-br from-slate-800 to-purple-900 p-5 shadow-2xl sm:max-h-[80vh] sm:p-6">
         {/* Header */}
         <div className="mb-4 flex shrink-0 items-center justify-between gap-4">
           <h2 className="text-2xl font-bold text-white">
